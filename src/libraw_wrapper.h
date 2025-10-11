@@ -17,6 +17,7 @@ private:
     
     // File Operations
     Napi::Value LoadFile(const Napi::CallbackInfo& info);
+    Napi::Value LoadBayerData(const Napi::CallbackInfo& info);
     Napi::Value LoadBuffer(const Napi::CallbackInfo& info);
     Napi::Value Close(const Napi::CallbackInfo& info);
     

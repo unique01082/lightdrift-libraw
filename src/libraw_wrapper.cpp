@@ -12,6 +12,7 @@ Napi::Object LibRawWrapper::Init(Napi::Env env, Napi::Object exports) {
         // File Operations
         InstanceMethod("loadFile", &LibRawWrapper::LoadFile),
         InstanceMethod("loadBuffer", &LibRawWrapper::LoadBuffer),
+        InstanceMethod("loadBayerData", &LibRawWrapper::LoadBayerData),
         InstanceMethod("close", &LibRawWrapper::Close),
         
         // Error Handling
@@ -153,6 +154,92 @@ Napi::Value LibRawWrapper::LoadFile(const Napi::CallbackInfo& info) {
             Napi::Error::New(env, error).ThrowAsJavaScriptException();
             return env.Null();
         }
+
+        isLoaded = true;
+        isUnpacked = true;
+        isProcessed = false;
+        return Napi::Boolean::New(env, true);
+    } catch (const std::exception& e) {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+Napi::Value LibRawWrapper::LoadBayerData(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected string filename").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    if (info.Length() != 2 || !info[1].IsObject()) {
+        Napi::TypeError::New(env, "Expected width and height of file").ThrowAsJavaScriptException();
+        return env.Null();   
+    }
+
+    std::string filename = info[0].As<Napi::String>().Utf8Value();
+    Napi::Object fileProperty = info[1].As<Napi::Object>();
+
+    if (!fileProperty.Has("width") || !fileProperty.Get("width").IsNumber()) {
+        Napi::TypeError::New(env, "Undefined width of file").ThrowAsJavaScriptException();
+        return env.Null(); 
+    }
+
+    if (!fileProperty.Has("height") || !fileProperty.Get("height").IsNumber()) {
+        Napi::TypeError::New(env, "Undefined height of file").ThrowAsJavaScriptException();
+        return env.Null(); 
+    }
+
+    FILE *in = fopen(filename.c_str(), "rb");
+    fseek(in, 0, SEEK_END);
+    unsigned fsz = ftell(in);
+    fseek(in, 0, SEEK_SET);
+
+    unsigned char *buffer = (unsigned char *)malloc(fsz);
+    if (!buffer) {
+        fclose(in);
+        Napi::Error::New(env, "Memory allocation failed").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    unsigned bytesRead = fread(buffer, 1, fsz, in);
+    fclose(in);
+    if (bytesRead != fsz) {
+        free(buffer);
+        Napi::Error::New(env, "Failed to read file").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    processor->imgdata.params.output_tiff = 1;
+
+    try {
+        int ret = processor->open_bayer(
+            buffer, 
+            fsz, 
+            fileProperty.Get("width").As<Napi::Number>().Uint32Value(), 
+            fileProperty.Get("height").As<Napi::Number>().Uint32Value(), 
+            0, 0, 0, 0, 0,
+            LIBRAW_OPENBAYER_BGGR, 0, 0, 0);
+
+        if (ret != LIBRAW_SUCCESS) {
+            free(buffer);
+            std::string error = "Failed to open file: ";
+            error += libraw_strerror(ret);
+            Napi::Error::New(env, error).ThrowAsJavaScriptException();
+            return env.Null();
+        }
+
+        ret = processor->unpack();
+        if (ret != LIBRAW_SUCCESS) {
+            free(buffer);
+            std::string error = "Failed to unpack file: ";
+            error += libraw_strerror(ret);
+            Napi::Error::New(env, error).ThrowAsJavaScriptException();
+            return env.Null();
+        }
+
+        free(buffer);
 
         isLoaded = true;
         isUnpacked = true;
@@ -723,31 +810,57 @@ Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
         if (params.Has("gamma") && params.Get("gamma").IsArray()) {
             Napi::Array gamma = params.Get("gamma").As<Napi::Array>();
             if (gamma.Length() >= 2) {
-                processor->imgdata.params.gamm[0] = gamma.Get(0u).As<Napi::Number>().DoubleValue();
-                processor->imgdata.params.gamm[1] = gamma.Get(1u).As<Napi::Number>().DoubleValue();
+                double g0 = gamma.Get(0u).As<Napi::Number>().DoubleValue();
+                double g1 = gamma.Get(1u).As<Napi::Number>().DoubleValue();
+                if (g0 <= 0.0 || g1 <= 0.0) {
+                    Napi::RangeError::New(env, "Gamma value must be positive").ThrowAsJavaScriptException();
+                    return env.Null();
+                }
+                processor->imgdata.params.gamm[0] = g0;
+                processor->imgdata.params.gamm[1] = g1;
             }
         }
 
         // Brightness
         if (params.Has("bright") && params.Get("bright").IsNumber()) {
-            processor->imgdata.params.bright = params.Get("bright").As<Napi::Number>().FloatValue();
+            float bright = params.Get("bright").As<Napi::Number>().FloatValue();
+            if (bright < 0.0f || bright > 10.0f ) {
+                Napi::RangeError::New(env, "Bright must be between 0.0 and 10.0").ThrowAsJavaScriptException();
+                return env.Null();
+            }
+            processor->imgdata.params.bright = bright;
         }
 
         // Output color space
         if (params.Has("output_color") && params.Get("output_color").IsNumber()) {
-            processor->imgdata.params.output_color = params.Get("output_color").As<Napi::Number>().Int32Value();
+            int32_t op_color = params.Get("output_color").As<Napi::Number>().Int32Value();
+            if (op_color < 0 || op_color > 8) {
+                Napi::RangeError::New(env, "Output color must be between 0 and 8").ThrowAsJavaScriptException();
+                return env.Null();
+            }
+            processor->imgdata.params.output_color = op_color;
         }
 
         // Output bits per sample
         if (params.Has("output_bps") && params.Get("output_bps").IsNumber()) {
-            processor->imgdata.params.output_bps = params.Get("output_bps").As<Napi::Number>().Int32Value();
+            int32_t op_bps = params.Get("output_bps").As<Napi::Number>().Int32Value();
+            if (op_bps != 8 && op_bps != 16) {
+                Napi::RangeError::New(env, "Output bits per sample must be 8 or 16").ThrowAsJavaScriptException();
+                return env.Null();
+            }
+            processor->imgdata.params.output_bps = op_bps;
         }
 
         // User multipliers
         if (params.Has("user_mul") && params.Get("user_mul").IsArray()) {
             Napi::Array userMul = params.Get("user_mul").As<Napi::Array>();
             for (uint32_t i = 0; i < 4 && i < userMul.Length(); i++) {
-                processor->imgdata.params.user_mul[i] = userMul.Get(i).As<Napi::Number>().FloatValue();
+                float mulVal = userMul.Get(i).As<Napi::Number>().FloatValue();
+                if (mulVal < 0.0f) {
+                    Napi::RangeError::New(env, "User multipliers must be non-negative").ThrowAsJavaScriptException();
+                    return env.Null();
+                }
+                processor->imgdata.params.user_mul[i] = mulVal;
             }
         }
 
@@ -758,7 +871,12 @@ Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
 
         // Highlight mode
         if (params.Has("highlight") && params.Get("highlight").IsNumber()) {
-            processor->imgdata.params.highlight = params.Get("highlight").As<Napi::Number>().Int32Value();
+            int32_t hightlight = params.Get("highlight").As<Napi::Number>().Int32Value();
+            if (hightlight < 0 || hightlight > 9) {
+                Napi::RangeError::New(env, "Hightlight mode must be between 0 and 9").ThrowAsJavaScriptException();
+                return env.Null();
+            }
+            processor->imgdata.params.highlight = hightlight;
         }
 
         // Output TIFF
