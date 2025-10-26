@@ -23,7 +23,10 @@ async function testConfiguration() {
 
     try {
       // Try to load the dummy file (will likely fail, but we'll handle it)
-      await processor.loadFile(tempFile);
+      await processor.loadBayerData(tempFile, {
+        width: 64,
+        height: 64
+      });
       console.log("   📁 Loaded test file (unexpected success)");
     } catch (loadError) {
       console.log(
