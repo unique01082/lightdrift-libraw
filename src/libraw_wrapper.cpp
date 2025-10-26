@@ -798,7 +798,7 @@ Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     if (!CheckLoaded(env)) return env.Null();
 
-    if (info.Length() < 1 || !info[0].IsObject()) {
+    if (info.Length() < 1 || !info[0].IsObject() || info[0].IsArray() || info[0].IsFunction()) {
         Napi::TypeError::New(env, "Expected object with output parameters").ThrowAsJavaScriptException();
         return env.Null();
     }
@@ -810,57 +810,31 @@ Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
         if (params.Has("gamma") && params.Get("gamma").IsArray()) {
             Napi::Array gamma = params.Get("gamma").As<Napi::Array>();
             if (gamma.Length() >= 2) {
-                double g0 = gamma.Get(0u).As<Napi::Number>().DoubleValue();
-                double g1 = gamma.Get(1u).As<Napi::Number>().DoubleValue();
-                if (g0 <= 0.0 || g1 <= 0.0) {
-                    Napi::RangeError::New(env, "Gamma value must be positive").ThrowAsJavaScriptException();
-                    return env.Null();
-                }
-                processor->imgdata.params.gamm[0] = g0;
-                processor->imgdata.params.gamm[1] = g1;
+                processor->imgdata.params.gamm[0] = gamma.Get(0u).As<Napi::Number>().DoubleValue();
+                processor->imgdata.params.gamm[1] = gamma.Get(1u).As<Napi::Number>().DoubleValue();
             }
         }
 
         // Brightness
         if (params.Has("bright") && params.Get("bright").IsNumber()) {
-            float bright = params.Get("bright").As<Napi::Number>().FloatValue();
-            if (bright < 0.0f || bright > 10.0f ) {
-                Napi::RangeError::New(env, "Bright must be between 0.0 and 10.0").ThrowAsJavaScriptException();
-                return env.Null();
-            }
-            processor->imgdata.params.bright = bright;
+            processor->imgdata.params.bright = params.Get("bright").As<Napi::Number>().FloatValue();
         }
 
         // Output color space
         if (params.Has("output_color") && params.Get("output_color").IsNumber()) {
-            int32_t op_color = params.Get("output_color").As<Napi::Number>().Int32Value();
-            if (op_color < 0 || op_color > 8) {
-                Napi::RangeError::New(env, "Output color must be between 0 and 8").ThrowAsJavaScriptException();
-                return env.Null();
-            }
-            processor->imgdata.params.output_color = op_color;
+            processor->imgdata.params.output_color = params.Get("output_color").As<Napi::Number>().Int32Value();
         }
 
         // Output bits per sample
         if (params.Has("output_bps") && params.Get("output_bps").IsNumber()) {
-            int32_t op_bps = params.Get("output_bps").As<Napi::Number>().Int32Value();
-            if (op_bps != 8 && op_bps != 16) {
-                Napi::RangeError::New(env, "Output bits per sample must be 8 or 16").ThrowAsJavaScriptException();
-                return env.Null();
-            }
-            processor->imgdata.params.output_bps = op_bps;
+            processor->imgdata.params.output_bps = params.Get("output_bps").As<Napi::Number>().Int32Value();
         }
 
         // User multipliers
         if (params.Has("user_mul") && params.Get("user_mul").IsArray()) {
             Napi::Array userMul = params.Get("user_mul").As<Napi::Array>();
             for (uint32_t i = 0; i < 4 && i < userMul.Length(); i++) {
-                float mulVal = userMul.Get(i).As<Napi::Number>().FloatValue();
-                if (mulVal < 0.0f) {
-                    Napi::RangeError::New(env, "User multipliers must be non-negative").ThrowAsJavaScriptException();
-                    return env.Null();
-                }
-                processor->imgdata.params.user_mul[i] = mulVal;
+                processor->imgdata.params.user_mul[i] = userMul.Get(i).As<Napi::Number>().FloatValue();
             }
         }
 
@@ -871,12 +845,7 @@ Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
 
         // Highlight mode
         if (params.Has("highlight") && params.Get("highlight").IsNumber()) {
-            int32_t hightlight = params.Get("highlight").As<Napi::Number>().Int32Value();
-            if (hightlight < 0 || hightlight > 9) {
-                Napi::RangeError::New(env, "Hightlight mode must be between 0 and 9").ThrowAsJavaScriptException();
-                return env.Null();
-            }
-            processor->imgdata.params.highlight = hightlight;
+            processor->imgdata.params.highlight = params.Get("highlight").As<Napi::Number>().Int32Value();
         }
 
         // Output TIFF
