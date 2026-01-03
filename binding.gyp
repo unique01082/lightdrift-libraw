@@ -39,11 +39,22 @@
           ]
         }],
         ['OS=="linux"', {
+          "include_dirs": [
+            "/usr/include",
+            "/usr/local/include",
+            "/usr/include/libraw"
+          ],
           "libraries": ["-lraw"],
           "cflags": ["-fexceptions"],
           "cflags_cc": ["-fexceptions"]
         }],
         ['OS=="mac"', {
+          "include_dirs": [
+            "/usr/local/include",
+            "/usr/local/include/libraw",
+            "/opt/homebrew/include",
+            "/opt/homebrew/include/libraw"
+          ],
           "libraries": ["-lraw"],
           "xcode_settings": {
             "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
