@@ -1,6 +1,6 @@
 {
   "name": "lightdrift-libraw",
-  "version": "1.0.0-alpha.3",
+  "version": "1.0.0-alpha.4",
   "description": "Node.js Native Addon for LibRaw - Process RAW image files with JavaScript",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -29,7 +29,8 @@
     "test:compare": "node test/compare-samples.js",
     "pretest": "npm run build",
     "prepublishOnly": "npm run test",
-    "install": "node-gyp rebuild",
+    "preinstall": "node-gyp-build-optional-packages || echo 'No prebuilt binaries available'",
+    "install": "node-gyp-build || node-gyp rebuild",
     "clean": "node-gyp clean",
     "setup:github": "node scripts/github-setup.js",
     "docs:generate": "node scripts/generate-docs.js",
@@ -42,6 +43,7 @@
   },
   "dependencies": {
     "node-addon-api": "^7.0.0",
+    "node-gyp-build": "^4.8.0",
     "sharp": "^0.33.5"
   },
   "devDependencies": {

@@ -59,14 +59,87 @@ npm install lightdrift-libraw
 
 **Version 1.0.0-alpha.3** is now available on [npmjs.com](https://www.npmjs.com/package/lightdrift-libraw)! 🎉
 
-### 🛠️ Build Requirements
+### 🛠️ System Requirements
+
+#### **Windows**
 
 - **Node.js** 14.0.0 or higher
 - **Python** 3.6+ (for node-gyp)
-- **C++ Build Tools**:
-  - Windows: Visual Studio 2019+ or VS Build Tools
-  - macOS: Xcode Command Line Tools
-  - Linux: GCC 8+ or equivalent
+- **Visual Studio Build Tools** 2019+ or Visual Studio Community
+- LibRaw is bundled (no additional dependencies needed)
+
+#### **Linux (Alpine/Debian/Ubuntu)**
+
+- **Node.js** 14.0.0 or higher
+- **Python** 3.6+ (for node-gyp)
+- **LibRaw development package**:
+
+  ```bash
+  # Alpine
+  apk add libraw-dev build-base
+
+  # Debian/Ubuntu
+  apt-get install libraw-dev build-essential
+
+  # Then install the package
+  npm install lightdrift-libraw
+  ```
+
+#### **macOS**
+
+- **Node.js** 14.0.0 or higher
+- **Xcode Command Line Tools**: `xcode-select --install`
+- **LibRaw**:
+  ```bash
+  brew install libraw
+  npm install lightdrift-libraw
+  ```
+
+### 🐳 Docker Usage
+
+When using Docker or pnpm, you may need to explicitly rebuild native modules:
+
+```dockerfile
+FROM node:18-alpine
+
+# Install system dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    libraw-dev
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install --frozen-lockfile
+
+# Explicitly rebuild native module
+RUN npm rebuild lightdrift-libraw
+
+# Copy application
+COPY . .
+
+CMD ["node", "app.js"]
+```
+
+#### **pnpm in Docker**
+
+If using pnpm, add `.npmrc` to your project:
+
+```
+enable-pre-post-scripts=true
+```
+
+Or rebuild manually:
+
+```dockerfile
+RUN pnpm install --frozen-lockfile
+RUN pnpm rebuild lightdrift-libraw
+```
 
 ### 🚀 Quick Verification
 
@@ -77,14 +150,6 @@ node -e "const LibRaw = require('lightdrift-libraw'); console.log('LibRaw versio
 ```
 
 Expected output: `LibRaw version: 0.21.4-Release`
-
-## Prerequisites (for building from source)
-
-- **Node.js** 14.0.0 or higher
-- **Python** 3.x (for node-gyp)
-- **Visual Studio Build Tools** (Windows)
-- **Xcode Command Line Tools** (macOS)
-- **build-essential** (Linux)
 
 ## Quick Start
 
