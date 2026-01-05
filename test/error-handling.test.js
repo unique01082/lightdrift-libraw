@@ -182,7 +182,10 @@ async function testErrorHandling() {
     fs.writeFileSync(tempFile, testBuffer);
 
     try {
-      await processor2.loadFile(tempFile);
+      await processor2.loadBayerData(tempFile, {
+        width: 32,
+        height: 32
+      });
       console.log("   📁 Loaded temp file for parameter testing");
 
       // Test invalid parameter types

@@ -12,6 +12,7 @@ Napi::Object LibRawWrapper::Init(Napi::Env env, Napi::Object exports) {
         // File Operations
         InstanceMethod("loadFile", &LibRawWrapper::LoadFile),
         InstanceMethod("loadBuffer", &LibRawWrapper::LoadBuffer),
+        InstanceMethod("loadBayerData", &LibRawWrapper::LoadBayerData),
         InstanceMethod("close", &LibRawWrapper::Close),
         
         // Error Handling
@@ -153,6 +154,92 @@ Napi::Value LibRawWrapper::LoadFile(const Napi::CallbackInfo& info) {
             Napi::Error::New(env, error).ThrowAsJavaScriptException();
             return env.Null();
         }
+
+        isLoaded = true;
+        isUnpacked = true;
+        isProcessed = false;
+        return Napi::Boolean::New(env, true);
+    } catch (const std::exception& e) {
+        Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
+        return env.Null();
+    }
+}
+
+Napi::Value LibRawWrapper::LoadBayerData(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected string filename").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    if (info.Length() != 2 || !info[1].IsObject()) {
+        Napi::TypeError::New(env, "Expected width and height of file").ThrowAsJavaScriptException();
+        return env.Null();   
+    }
+
+    std::string filename = info[0].As<Napi::String>().Utf8Value();
+    Napi::Object fileProperty = info[1].As<Napi::Object>();
+
+    if (!fileProperty.Has("width") || !fileProperty.Get("width").IsNumber()) {
+        Napi::TypeError::New(env, "Undefined width of file").ThrowAsJavaScriptException();
+        return env.Null(); 
+    }
+
+    if (!fileProperty.Has("height") || !fileProperty.Get("height").IsNumber()) {
+        Napi::TypeError::New(env, "Undefined height of file").ThrowAsJavaScriptException();
+        return env.Null(); 
+    }
+
+    FILE *in = fopen(filename.c_str(), "rb");
+    fseek(in, 0, SEEK_END);
+    unsigned fsz = ftell(in);
+    fseek(in, 0, SEEK_SET);
+
+    unsigned char *buffer = (unsigned char *)malloc(fsz);
+    if (!buffer) {
+        fclose(in);
+        Napi::Error::New(env, "Memory allocation failed").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    unsigned bytesRead = fread(buffer, 1, fsz, in);
+    fclose(in);
+    if (bytesRead != fsz) {
+        free(buffer);
+        Napi::Error::New(env, "Failed to read file").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    processor->imgdata.params.output_tiff = 1;
+
+    try {
+        int ret = processor->open_bayer(
+            buffer, 
+            fsz, 
+            fileProperty.Get("width").As<Napi::Number>().Uint32Value(), 
+            fileProperty.Get("height").As<Napi::Number>().Uint32Value(), 
+            0, 0, 0, 0, 0,
+            LIBRAW_OPENBAYER_BGGR, 0, 0, 0);
+
+        if (ret != LIBRAW_SUCCESS) {
+            free(buffer);
+            std::string error = "Failed to open file: ";
+            error += libraw_strerror(ret);
+            Napi::Error::New(env, error).ThrowAsJavaScriptException();
+            return env.Null();
+        }
+
+        ret = processor->unpack();
+        if (ret != LIBRAW_SUCCESS) {
+            free(buffer);
+            std::string error = "Failed to unpack file: ";
+            error += libraw_strerror(ret);
+            Napi::Error::New(env, error).ThrowAsJavaScriptException();
+            return env.Null();
+        }
+
+        free(buffer);
 
         isLoaded = true;
         isUnpacked = true;
@@ -711,7 +798,7 @@ Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     if (!CheckLoaded(env)) return env.Null();
 
-    if (info.Length() < 1 || !info[0].IsObject()) {
+    if (info.Length() < 1 || !info[0].IsObject() || info[0].IsArray() || info[0].IsFunction()) {
         Napi::TypeError::New(env, "Expected object with output parameters").ThrowAsJavaScriptException();
         return env.Null();
     }
