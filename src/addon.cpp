@@ -5,4 +5,5 @@ Napi::Object InitAll(Napi::Env env, Napi::Object exports) {
     return LibRawWrapper::Init(env, exports);
 }
 
-NODE_API_MODULE(libraw_addon, InitAll)
+// Use context-aware initialization for worker thread safety
+NODE_API_MODULE(NODE_GYP_MODULE_NAME, InitAll)

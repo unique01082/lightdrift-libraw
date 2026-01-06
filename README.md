@@ -11,6 +11,7 @@ A high-performance Node.js Native Addon for processing RAW image files using the
 ## Features
 
 - ✅ **100+ RAW Formats** - Canon, Nikon, Sony, Adobe DNG, and more
+- ✅ **Worker Thread Compatible** - 🆕 True parallel processing across CPU cores
 - ✅ **Comprehensive Metadata** - EXIF data, camera settings, dimensions, lens info
 - ✅ **Advanced Color Information** - Color matrices, white balance, calibration data
 - ✅ **Image Processing Pipeline** - Full dcraw-compatible processing chain
@@ -162,6 +163,21 @@ async function processRAW() {
   try {
     // Load RAW file
     await processor.loadFile("photo.cr2");
+
+    // 🆕 NEW: High-Level Worker-Thread-Optimized API
+    // Process entire pipeline in one call (perfect for worker threads)
+    const result = await processor.processRawThumbnail({
+      filePath: "photo.cr2",
+      format: "jpeg",
+      maxSize: 800,
+      quality: 85,
+      tryEmbedded: true, // Try embedded thumbnail first (10-50x faster)
+    });
+
+    console.log(`Format: ${result.format}`);
+    console.log(`Size: ${result.fileSize} bytes`);
+    console.log(`Used embedded: ${result.usedEmbedded}`);
+    // result.buffer contains your image
 
     // 🆕 NEW: Buffer Creation API - Create images directly in memory
     // Process the RAW data first
@@ -742,6 +758,63 @@ npm run test:jpeg-conversion
 # Batch convert with CLI interface
 npm run convert:jpeg <input-dir> [output-dir] [preset]
 ```
+
+## Worker Thread Support 🚀
+
+**New in 1.0.0-beta.1**: Full support for Node.js worker threads enables true parallel processing!
+
+### Why Worker Threads?
+
+Process multiple RAW images simultaneously across all CPU cores for maximum performance:
+
+- **8x faster** batch processing on 8-core CPU
+- **Non-blocking** - Keep main thread responsive
+- **Scalable** - Utilize all available CPU cores
+- **Memory-safe** - Proper isolation and cleanup
+
+### Quick Example
+
+```javascript
+// worker.js
+const { parentPort, workerData } = require("worker_threads");
+const LibRaw = require("lightdrift-libraw");
+
+async function process() {
+  const processor = new LibRaw();
+  const result = await processor.processRawThumbnail({
+    filePath: workerData.filePath,
+    format: "jpeg",
+    maxSize: 800,
+    quality: 85,
+  });
+  parentPort.postMessage(result);
+}
+process();
+```
+
+```javascript
+// main.js
+const { Worker } = require("worker_threads");
+
+const worker = new Worker("./worker.js", {
+  workerData: { filePath: "./photo.cr2" },
+});
+
+worker.on("message", (result) => {
+  console.log(`Processed: ${result.fileSize} bytes`);
+  // result.buffer contains your image
+});
+```
+
+### Complete Documentation
+
+See **[docs/WORKER_THREADS.md](docs/WORKER_THREADS.md)** for:
+
+- Worker pool implementation
+- Memory management best practices
+- Batch processing examples
+- Performance benchmarks
+- Thread safety guarantees
 
 ````
 

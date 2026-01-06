@@ -1,7 +1,7 @@
 {
   "name": "lightdrift-libraw",
-  "version": "1.0.0-alpha.6",
-  "description": "Node.js Native Addon for LibRaw - Process RAW image files with JavaScript",
+  "version": "1.0.0-beta.1",
+  "description": "Node.js Native Addon for LibRaw - Process RAW image files with JavaScript. Worker thread compatible for parallel processing.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
   "scripts": {
@@ -21,6 +21,8 @@
     "test:format-conversion": "node test/format-conversion.test.js",
     "test:thumbnail-extraction": "node test/thumbnail-extraction.test.js",
     "test:jpeg-conversion": "node test/jpeg-conversion.test.js",
+    "test:workers": "node test/worker-thread.test.js",
+    "test:worker-memory": "node --expose-gc test/worker-memory-leak.test.js",
     "test:legacy": "npm run test:basic && npm run test:formats && npm run test:performance",
     "test:basic": "node test/test.js",
     "test:formats": "node test/all-formats.test.js",
@@ -73,6 +75,9 @@
     "image",
     "photography",
     "native-addon",
+    "worker-threads",
+    "parallel-processing",
+    "multi-threading",
     "nef",
     "cr2",
     "cr3",

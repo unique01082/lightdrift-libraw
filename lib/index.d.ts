@@ -555,6 +555,35 @@ declare module 'libraw' {
      */
     createThumbnailJPEGBuffer(options?: LibRawThumbnailJPEGOptions): Promise<LibRawBufferResult>;
 
+    /**
+     * High-level method to process RAW file thumbnail in one call
+     * Optimized for worker threads with single serialization boundary
+     * @param options Processing options
+     */
+    processRawThumbnail(options: {
+      /** Path to RAW file */
+      filePath: string;
+      /** Output format: 'jpeg', 'png', or 'webp' */
+      format: 'jpeg' | 'png' | 'webp';
+      /** Maximum dimension size */
+      maxSize: number;
+      /** Quality (1-100) for JPEG/WebP */
+      quality?: number;
+      /** Compression level (0-9) for PNG */
+      compressionLevel?: number;
+      /** Try embedded thumbnail first (default: true) */
+      tryEmbedded?: boolean;
+    }): Promise<{
+      success: boolean;
+      buffer: Buffer;
+      format: string;
+      dimensions: { width: number; height: number };
+      outputDimensions?: { width: number; height: number };
+      usedEmbedded?: boolean;
+      processingTimeMs: string;
+      fileSize: number;
+    }>;
+
     // ============== JPEG CONVERSION (NEW FEATURE) ==============
     /**
      * Convert RAW to JPEG with advanced options
