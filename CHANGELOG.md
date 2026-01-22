@@ -23,12 +23,14 @@ This release adds full worker thread compatibility, enabling true parallel proce
 #### 🧵 Full Worker Thread Compatibility
 
 - **Thread-Safe Native Bindings**
+
   - Context-aware N-API initialization using `NODE_GYP_MODULE_NAME`
   - Each worker gets isolated LibRaw instance
   - No shared global state between threads
   - Proper memory cleanup across thread boundaries
 
 - **High-Level Worker-Optimized API**
+
   - New `processRawThumbnail(options)` method for single-call processing
   - Optimized for worker thread serialization boundary
   - Supports JPEG, PNG, and WebP output formats
@@ -44,6 +46,7 @@ This release adds full worker thread compatibility, enabling true parallel proce
 #### 📚 Documentation
 
 - **Complete Worker Thread Guide** (`docs/WORKER_THREADS.md`)
+
   - Quick start examples
   - Worker pool implementation pattern
   - Memory management best practices
@@ -110,16 +113,16 @@ This release adds full worker thread compatibility, enabling true parallel proce
 
 ```javascript
 // worker.js
-const { parentPort, workerData } = require('worker_threads');
-const LibRaw = require('lightdrift-libraw');
+const { parentPort, workerData } = require("worker_threads");
+const LibRaw = require("lightdrift-libraw");
 
 async function process() {
   const processor = new LibRaw();
   const result = await processor.processRawThumbnail({
     filePath: workerData.filePath,
-    format: 'jpeg',
+    format: "jpeg",
     maxSize: 800,
-    quality: 85
+    quality: 85,
   });
   parentPort.postMessage(result);
 }
@@ -128,17 +131,20 @@ process();
 
 ```javascript
 // main.js - Process 100 files in parallel
-const { Worker } = require('worker_threads');
+const { Worker } = require("worker_threads");
 
 async function processFiles(files) {
   return Promise.all(
-    files.map(file => new Promise((resolve, reject) => {
-      const worker = new Worker('./worker.js', {
-        workerData: { filePath: file }
-      });
-      worker.on('message', resolve);
-      worker.on('error', reject);
-    }))
+    files.map(
+      (file) =>
+        new Promise((resolve, reject) => {
+          const worker = new Worker("./worker.js", {
+            workerData: { filePath: file },
+          });
+          worker.on("message", resolve);
+          worker.on("error", reject);
+        })
+    )
   );
 }
 ```
@@ -166,6 +172,7 @@ async function processFiles(files) {
 ### 🎯 Migration Path
 
 **Before (Single Thread):**
+
 ```javascript
 for (const file of files) {
   const processor = new LibRaw();
@@ -177,10 +184,11 @@ for (const file of files) {
 ```
 
 **After (Worker Threads - 8x faster):**
+
 ```javascript
-const pool = new WorkerPool('./worker.js', 8);
+const pool = new WorkerPool("./worker.js", 8);
 const results = await Promise.all(
-  files.map(file => pool.execute({ filePath: file }))
+  files.map((file) => pool.execute({ filePath: file }))
 );
 ```
 

@@ -1,6 +1,7 @@
 # Worker Threads Quick Reference
 
 ## Installation
+
 ```bash
 npm install lightdrift-libraw@1.0.0-beta.1
 ```
@@ -8,9 +9,10 @@ npm install lightdrift-libraw@1.0.0-beta.1
 ## Minimal Worker Example
 
 ### worker.js
+
 ```javascript
-const { parentPort, workerData } = require('worker_threads');
-const LibRaw = require('lightdrift-libraw');
+const { parentPort, workerData } = require("worker_threads");
+const LibRaw = require("lightdrift-libraw");
 
 async function process() {
   const processor = new LibRaw();
@@ -21,19 +23,20 @@ process();
 ```
 
 ### main.js
-```javascript
-const { Worker } = require('worker_threads');
 
-const worker = new Worker('./worker.js', {
+```javascript
+const { Worker } = require("worker_threads");
+
+const worker = new Worker("./worker.js", {
   workerData: {
-    filePath: './photo.cr2',
-    format: 'jpeg',
+    filePath: "./photo.cr2",
+    format: "jpeg",
     maxSize: 800,
-    quality: 85
-  }
+    quality: 85,
+  },
 });
 
-worker.on('message', (result) => {
+worker.on("message", (result) => {
   if (result.success) {
     console.log(`✓ ${result.fileSize} bytes`);
     // Use result.buffer
@@ -83,7 +86,7 @@ class WorkerPool {
   async execute(data) {
     return new Promise((resolve, reject) => {
       const task = { data, resolve, reject };
-      
+
       if (this.active < this.size) {
         this._run(task);
       } else {
@@ -95,13 +98,13 @@ class WorkerPool {
   _run(task) {
     this.active++;
     const worker = new Worker(this.script, { workerData: task.data });
-    
-    worker.on('message', (result) => {
+
+    worker.on("message", (result) => {
       task.resolve(result);
       this._done();
     });
-    
-    worker.on('error', (err) => {
+
+    worker.on("error", (err) => {
       task.reject(err);
       this._done();
     });
@@ -116,7 +119,7 @@ class WorkerPool {
 
   async close() {
     while (this.active > 0) {
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise((r) => setTimeout(r, 100));
     }
   }
 }
@@ -125,15 +128,17 @@ class WorkerPool {
 ## Usage with Pool
 
 ```javascript
-const pool = new WorkerPool('./worker.js', 8);
+const pool = new WorkerPool("./worker.js", 8);
 
 const results = await Promise.all(
-  files.map(file => pool.execute({
-    filePath: file,
-    format: 'jpeg',
-    maxSize: 800,
-    quality: 85
-  }))
+  files.map((file) =>
+    pool.execute({
+      filePath: file,
+      format: "jpeg",
+      maxSize: 800,
+      quality: 85,
+    })
+  )
 );
 
 await pool.close();
@@ -142,6 +147,7 @@ await pool.close();
 ## Memory Best Practices
 
 ✅ **DO:**
+
 ```javascript
 async function process(file) {
   const processor = new LibRaw();
@@ -154,6 +160,7 @@ async function process(file) {
 ```
 
 ❌ **DON'T:**
+
 ```javascript
 const processor = new LibRaw(); // Don't reuse instances
 
@@ -176,18 +183,18 @@ async function process(file) {
 ```javascript
 async function safeProcess(workerData) {
   return new Promise((resolve, reject) => {
-    const worker = new Worker('./worker.js', { workerData });
-    
-    worker.on('message', (result) => {
+    const worker = new Worker("./worker.js", { workerData });
+
+    worker.on("message", (result) => {
       if (result.success) {
         resolve(result);
       } else {
         reject(new Error(result.error.message));
       }
     });
-    
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
+
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker exit ${code}`));
       }
@@ -218,12 +225,14 @@ node examples/worker-thread-example.js
 ## Common Issues
 
 **"Cannot find module"**
+
 ```javascript
 // Use absolute paths or proper module resolution
-const LibRaw = require('lightdrift-libraw'); // ✓
+const LibRaw = require("lightdrift-libraw"); // ✓
 ```
 
 **Memory keeps growing**
+
 ```javascript
 // Always call close()
 try {
@@ -234,10 +243,11 @@ try {
 ```
 
 **Worker exits unexpectedly**
+
 ```javascript
 // Handle unhandled rejections
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled:', error);
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled:", error);
   process.exit(1);
 });
 ```

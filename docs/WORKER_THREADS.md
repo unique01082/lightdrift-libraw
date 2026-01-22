@@ -10,7 +10,7 @@ As of version 1.0.0-beta.1, **lightdrift-libraw** is fully compatible with Node.
 ✅ **Isolated Instances** - Each worker gets its own LibRaw instance  
 ✅ **Structured Clone Support** - All return values are serializable  
 ✅ **Memory Safe** - Proper cleanup prevents memory leaks  
-✅ **High-Level API** - Single-call `processRawThumbnail()` method  
+✅ **High-Level API** - Single-call `processRawThumbnail()` method
 
 ## Why Worker Threads?
 
@@ -27,32 +27,32 @@ Processing RAW images is CPU-intensive. Worker threads allow you to:
 
 ```javascript
 // worker.js
-const { parentPort, workerData } = require('worker_threads');
-const LibRaw = require('lightdrift-libraw');
+const { parentPort, workerData } = require("worker_threads");
+const LibRaw = require("lightdrift-libraw");
 
 async function processImage() {
   const processor = new LibRaw();
-  
+
   try {
     await processor.loadFile(workerData.filePath);
     await processor.processImage();
-    
+
     const result = await processor.createJPEGBuffer({
       quality: 85,
-      width: 800
+      width: 800,
     });
-    
+
     await processor.close();
-    
+
     parentPort.postMessage({
       success: true,
       buffer: result.buffer,
-      dimensions: result.metadata.dimensions
+      dimensions: result.metadata.dimensions,
     });
   } catch (error) {
     parentPort.postMessage({
       success: false,
-      error: error.message
+      error: error.message,
     });
   }
 }
@@ -62,15 +62,15 @@ processImage();
 
 ```javascript
 // main.js
-const { Worker } = require('worker_threads');
+const { Worker } = require("worker_threads");
 
-const worker = new Worker('./worker.js', {
-  workerData: { filePath: './image.cr2' }
+const worker = new Worker("./worker.js", {
+  workerData: { filePath: "./image.cr2" },
 });
 
-worker.on('message', (result) => {
+worker.on("message", (result) => {
   if (result.success) {
-    console.log('Processed:', result.dimensions);
+    console.log("Processed:", result.dimensions);
     // result.buffer contains the JPEG
   }
 });
@@ -84,29 +84,29 @@ The `processRawThumbnail()` method is optimized for worker threads with a single
 
 ```javascript
 // thumbnail-worker.js
-const { parentPort, workerData } = require('worker_threads');
-const LibRaw = require('lightdrift-libraw');
+const { parentPort, workerData } = require("worker_threads");
+const LibRaw = require("lightdrift-libraw");
 
 async function processThumbnail() {
   const processor = new LibRaw();
-  
+
   try {
     const result = await processor.processRawThumbnail({
       filePath: workerData.filePath,
-      format: workerData.format || 'jpeg',
+      format: workerData.format || "jpeg",
       maxSize: workerData.maxSize || 800,
       quality: workerData.quality || 85,
-      tryEmbedded: true  // Use embedded thumbnail if available
+      tryEmbedded: true, // Use embedded thumbnail if available
     });
-    
+
     parentPort.postMessage(result);
   } catch (error) {
     parentPort.postMessage({
       success: false,
       error: {
         message: error.message,
-        code: error.code || 'PROCESSING_ERROR'
-      }
+        code: error.code || "PROCESSING_ERROR",
+      },
     });
   }
 }
@@ -118,23 +118,23 @@ processThumbnail();
 
 ```javascript
 // main.js
-const { Worker } = require('worker_threads');
-const path = require('path');
+const { Worker } = require("worker_threads");
+const path = require("path");
 
 function processInWorker(filePath, options = {}) {
   return new Promise((resolve, reject) => {
-    const worker = new Worker('./thumbnail-worker.js', {
+    const worker = new Worker("./thumbnail-worker.js", {
       workerData: {
         filePath,
-        format: options.format || 'jpeg',
+        format: options.format || "jpeg",
         maxSize: options.maxSize || 800,
-        quality: options.quality || 85
-      }
+        quality: options.quality || 85,
+      },
     });
 
-    worker.on('message', resolve);
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
+    worker.on("message", resolve);
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker exited with code ${code}`));
       }
@@ -144,19 +144,21 @@ function processInWorker(filePath, options = {}) {
 
 // Use it
 async function main() {
-  const result = await processInWorker('./photos/IMG_1234.CR2', {
-    format: 'jpeg',
+  const result = await processInWorker("./photos/IMG_1234.CR2", {
+    format: "jpeg",
     maxSize: 1200,
-    quality: 90
+    quality: 90,
   });
 
   if (result.success) {
     console.log(`Processed: ${result.format}`);
     console.log(`Size: ${result.fileSize} bytes`);
-    console.log(`Dimensions: ${result.dimensions.width}x${result.dimensions.height}`);
+    console.log(
+      `Dimensions: ${result.dimensions.width}x${result.dimensions.height}`
+    );
     console.log(`Used embedded: ${result.usedEmbedded}`);
     console.log(`Time: ${result.processingTimeMs} ms`);
-    
+
     // result.buffer is your image
   }
 }
@@ -167,8 +169,8 @@ async function main() {
 For batch processing, use a worker pool:
 
 ```javascript
-const { Worker } = require('worker_threads');
-const os = require('os');
+const { Worker } = require("worker_threads");
+const os = require("os");
 
 class WorkerPool {
   constructor(workerScript, poolSize = os.cpus().length) {
@@ -182,7 +184,7 @@ class WorkerPool {
   async execute(workerData) {
     return new Promise((resolve, reject) => {
       const task = { workerData, resolve, reject };
-      
+
       if (this.activeWorkers < this.poolSize) {
         this._runTask(task);
       } else {
@@ -193,22 +195,22 @@ class WorkerPool {
 
   _runTask(task) {
     this.activeWorkers++;
-    
+
     const worker = new Worker(this.workerScript, {
-      workerData: task.workerData
+      workerData: task.workerData,
     });
 
-    worker.on('message', (result) => {
+    worker.on("message", (result) => {
       task.resolve(result);
       this._onWorkerDone();
     });
 
-    worker.on('error', (error) => {
+    worker.on("error", (error) => {
       task.reject(error);
       this._onWorkerDone();
     });
 
-    worker.on('exit', (code) => {
+    worker.on("exit", (code) => {
       if (code !== 0) {
         task.reject(new Error(`Worker exited with code ${code}`));
       }
@@ -218,7 +220,7 @@ class WorkerPool {
 
   _onWorkerDone() {
     this.activeWorkers--;
-    
+
     if (this.queue.length > 0) {
       const nextTask = this.queue.shift();
       this._runTask(nextTask);
@@ -228,26 +230,26 @@ class WorkerPool {
   async close() {
     // Wait for all active tasks to complete
     while (this.activeWorkers > 0) {
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }
 }
 
 // Usage
 async function processBatch(filePaths) {
-  const pool = new WorkerPool('./thumbnail-worker.js', 8);
-  
+  const pool = new WorkerPool("./thumbnail-worker.js", 8);
+
   const results = await Promise.all(
-    filePaths.map(filePath => 
+    filePaths.map((filePath) =>
       pool.execute({
         filePath,
-        format: 'jpeg',
+        format: "jpeg",
         maxSize: 800,
-        quality: 85
+        quality: 85,
       })
     )
   );
-  
+
   await pool.close();
   return results;
 }
@@ -258,18 +260,21 @@ async function processBatch(filePaths) {
 All existing methods work in worker threads:
 
 ### File Loading
+
 ```javascript
 await processor.loadFile(filePath);
 await processor.loadBuffer(buffer);
 ```
 
 ### Processing
+
 ```javascript
 await processor.processImage();
 await processor.unpackThumbnail();
 ```
 
 ### Buffer Creation
+
 ```javascript
 await processor.createJPEGBuffer({ quality: 90, width: 800 });
 await processor.createPNGBuffer({ width: 800, compressionLevel: 6 });
@@ -278,11 +283,13 @@ await processor.createThumbnailJPEGBuffer({ maxSize: 400, quality: 85 });
 ```
 
 ### Metadata
+
 ```javascript
 const metadata = await processor.getMetadata();
 ```
 
 ### Cleanup
+
 ```javascript
 await processor.close(); // Always call this!
 ```
@@ -324,12 +331,12 @@ async function processImage(filePath) {
 // Use try-finally to ensure cleanup
 async function safeProcess(filePath) {
   const processor = new LibRaw();
-  
+
   try {
     await processor.loadFile(filePath);
     return await processor.createJPEGBuffer({ quality: 85, width: 800 });
   } catch (error) {
-    console.error('Processing failed:', error);
+    console.error("Processing failed:", error);
     throw error;
   } finally {
     // This runs even if error is thrown
@@ -352,8 +359,8 @@ try {
     success: false,
     error: {
       message: error.message,
-      code: 'LOAD_FAILED'
-    }
+      code: "LOAD_FAILED",
+    },
   });
 }
 ```
@@ -387,8 +394,8 @@ npm run test:worker-memory
 Make sure you're using absolute paths or proper module resolution:
 
 ```javascript
-const LibRaw = require('lightdrift-libraw'); // ✅ Works
-const LibRaw = require('../lib/index.js');    // ✅ Works with absolute path
+const LibRaw = require("lightdrift-libraw"); // ✅ Works
+const LibRaw = require("../lib/index.js"); // ✅ Works with absolute path
 ```
 
 ### Memory keeps growing
@@ -397,8 +404,8 @@ Ensure you're calling `close()` on every instance:
 
 ```javascript
 // Add this to verify cleanup
-process.on('exit', () => {
-  console.log('Final memory:', process.memoryUsage());
+process.on("exit", () => {
+  console.log("Final memory:", process.memoryUsage());
 });
 ```
 
@@ -407,8 +414,8 @@ process.on('exit', () => {
 Check for unhandled promise rejections:
 
 ```javascript
-process.on('unhandledRejection', (error) => {
-  console.error('Unhandled rejection:', error);
+process.on("unhandledRejection", (error) => {
+  console.error("Unhandled rejection:", error);
   process.exit(1);
 });
 ```
@@ -452,10 +459,10 @@ for (const file of files) {
 ### After (Worker Threads)
 
 ```javascript
-const pool = new WorkerPool('./worker.js', 8);
+const pool = new WorkerPool("./worker.js", 8);
 
 const results = await Promise.all(
-  files.map(file => pool.execute({ filePath: file }))
+  files.map((file) => pool.execute({ filePath: file }))
 );
 
 await pool.close();

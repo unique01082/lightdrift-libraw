@@ -3,32 +3,35 @@
  * Tests LibRaw addon in worker_threads context
  */
 
-const { Worker } = require('worker_threads');
-const path = require('path');
-const fs = require('fs');
+const { Worker } = require("worker_threads");
+const path = require("path");
+const fs = require("fs");
 
 // Test configuration
-const TEST_IMAGE = path.join(__dirname, '../sample-images/DSC_0006.NEF');
-const OUTPUT_DIR = path.join(__dirname, 'worker-output');
+const TEST_IMAGE = path.join(__dirname, "../sample-images/DSC_0006.NEF");
+const OUTPUT_DIR = path.join(__dirname, "worker-output");
 
 // Ensure output directory exists
 if (!fs.existsSync(OUTPUT_DIR)) {
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 }
 
-console.log('='.repeat(70));
-console.log('Worker Thread Compatibility Tests');
-console.log('='.repeat(70));
+console.log("=".repeat(70));
+console.log("Worker Thread Compatibility Tests");
+console.log("=".repeat(70));
 
 // Test 1: Basic worker instantiation
 async function testBasicWorkerInstantiation() {
-  console.log('\n[Test 1] Basic Worker Instantiation');
-  console.log('-'.repeat(70));
+  console.log("\n[Test 1] Basic Worker Instantiation");
+  console.log("-".repeat(70));
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(`
+    const worker = new Worker(
+      `
       const { parentPort } = require('worker_threads');
-      const LibRaw = require(${JSON.stringify(path.join(__dirname, '../lib/index.js'))});
+      const LibRaw = require(${JSON.stringify(
+        path.join(__dirname, "../lib/index.js")
+      )});
       
       try {
         const processor = new LibRaw();
@@ -36,20 +39,22 @@ async function testBasicWorkerInstantiation() {
       } catch (error) {
         parentPort.postMessage({ success: false, error: error.message });
       }
-    `, { eval: true });
+    `,
+      { eval: true }
+    );
 
-    worker.on('message', (msg) => {
+    worker.on("message", (msg) => {
       if (msg.success) {
-        console.log('✓ LibRaw instantiated successfully in worker thread');
+        console.log("✓ LibRaw instantiated successfully in worker thread");
         resolve();
       } else {
-        console.error('✗ Failed to instantiate:', msg.error);
+        console.error("✗ Failed to instantiate:", msg.error);
         reject(new Error(msg.error));
       }
     });
 
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker stopped with exit code ${code}`));
       }
@@ -59,13 +64,16 @@ async function testBasicWorkerInstantiation() {
 
 // Test 2: Load file in worker
 async function testLoadFileInWorker() {
-  console.log('\n[Test 2] Load RAW File in Worker');
-  console.log('-'.repeat(70));
+  console.log("\n[Test 2] Load RAW File in Worker");
+  console.log("-".repeat(70));
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(`
+    const worker = new Worker(
+      `
       const { parentPort, workerData } = require('worker_threads');
-      const LibRaw = require(${JSON.stringify(path.join(__dirname, '../lib/index.js'))});
+      const LibRaw = require(${JSON.stringify(
+        path.join(__dirname, "../lib/index.js")
+      )});
       
       async function run() {
         try {
@@ -89,22 +97,26 @@ async function testLoadFileInWorker() {
       }
       
       run();
-    `, { eval: true, workerData: { filePath: TEST_IMAGE } });
+    `,
+      { eval: true, workerData: { filePath: TEST_IMAGE } }
+    );
 
-    worker.on('message', (msg) => {
+    worker.on("message", (msg) => {
       if (msg.success) {
-        console.log('✓ File loaded successfully');
+        console.log("✓ File loaded successfully");
         console.log(`  Camera: ${msg.metadata.make} ${msg.metadata.model}`);
-        console.log(`  Dimensions: ${msg.metadata.width}x${msg.metadata.height}`);
+        console.log(
+          `  Dimensions: ${msg.metadata.width}x${msg.metadata.height}`
+        );
         resolve();
       } else {
-        console.error('✗ Failed to load file:', msg.error);
+        console.error("✗ Failed to load file:", msg.error);
         reject(new Error(msg.error));
       }
     });
 
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker stopped with exit code ${code}`));
       }
@@ -114,13 +126,16 @@ async function testLoadFileInWorker() {
 
 // Test 3: Process image and create JPEG buffer in worker
 async function testProcessImageInWorker() {
-  console.log('\n[Test 3] Process Image and Create JPEG Buffer in Worker');
-  console.log('-'.repeat(70));
+  console.log("\n[Test 3] Process Image and Create JPEG Buffer in Worker");
+  console.log("-".repeat(70));
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(`
+    const worker = new Worker(
+      `
       const { parentPort, workerData } = require('worker_threads');
-      const LibRaw = require(${JSON.stringify(path.join(__dirname, '../lib/index.js'))});
+      const LibRaw = require(${JSON.stringify(
+        path.join(__dirname, "../lib/index.js")
+      )});
       
       async function run() {
         try {
@@ -146,13 +161,16 @@ async function testProcessImageInWorker() {
       }
       
       run();
-    `, { eval: true, workerData: { filePath: TEST_IMAGE } });
+    `,
+      { eval: true, workerData: { filePath: TEST_IMAGE } }
+    );
 
-    worker.on('message', (msg) => {
+    worker.on("message", (msg) => {
       if (msg.success) {
-        console.log('✓ Image processed successfully');
+        console.log("✓ Image processed successfully");
         console.log(`  Buffer size: ${(msg.bufferSize / 1024).toFixed(2)} KB`);
-        const dims = msg.metadata.dimensions || msg.metadata.originalDimensions || {};
+        const dims =
+          msg.metadata.dimensions || msg.metadata.originalDimensions || {};
         const outDims = msg.metadata.outputDimensions || dims;
         if (dims.width) {
           console.log(`  Original: ${dims.width}x${dims.height}`);
@@ -162,13 +180,13 @@ async function testProcessImageInWorker() {
         }
         resolve();
       } else {
-        console.error('✗ Failed to process image:', msg.error);
+        console.error("✗ Failed to process image:", msg.error);
         reject(new Error(msg.error));
       }
     });
 
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker stopped with exit code ${code}`));
       }
@@ -178,13 +196,16 @@ async function testProcessImageInWorker() {
 
 // Test 4: Use high-level processRawThumbnail method in worker
 async function testProcessRawThumbnailInWorker() {
-  console.log('\n[Test 4] High-Level processRawThumbnail Method in Worker');
-  console.log('-'.repeat(70));
+  console.log("\n[Test 4] High-Level processRawThumbnail Method in Worker");
+  console.log("-".repeat(70));
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(`
+    const worker = new Worker(
+      `
       const { parentPort, workerData } = require('worker_threads');
-      const LibRaw = require(${JSON.stringify(path.join(__dirname, '../lib/index.js'))});
+      const LibRaw = require(${JSON.stringify(
+        path.join(__dirname, "../lib/index.js")
+      )});
       
       async function run() {
         try {
@@ -220,24 +241,28 @@ async function testProcessRawThumbnailInWorker() {
       }
       
       run();
-    `, { eval: true, workerData: { filePath: TEST_IMAGE } });
+    `,
+      { eval: true, workerData: { filePath: TEST_IMAGE } }
+    );
 
-    worker.on('message', (msg) => {
+    worker.on("message", (msg) => {
       if (msg.success) {
-        console.log('✓ processRawThumbnail completed successfully');
+        console.log("✓ processRawThumbnail completed successfully");
         console.log(`  Format: ${msg.result.format}`);
-        console.log(`  Buffer size: ${(msg.result.bufferSize / 1024).toFixed(2)} KB`);
+        console.log(
+          `  Buffer size: ${(msg.result.bufferSize / 1024).toFixed(2)} KB`
+        );
         console.log(`  Used embedded: ${msg.result.usedEmbedded}`);
         console.log(`  Processing time: ${msg.result.processingTimeMs} ms`);
         resolve();
       } else {
-        console.error('✗ Failed to process thumbnail:', msg.error.message);
+        console.error("✗ Failed to process thumbnail:", msg.error.message);
         reject(new Error(msg.error.message));
       }
     });
 
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker stopped with exit code ${code}`));
       }
@@ -247,13 +272,16 @@ async function testProcessRawThumbnailInWorker() {
 
 // Test 5: Sequential operations in same worker
 async function testSequentialOperations() {
-  console.log('\n[Test 5] Sequential Operations (10 files) in Same Worker');
-  console.log('-'.repeat(70));
+  console.log("\n[Test 5] Sequential Operations (10 files) in Same Worker");
+  console.log("-".repeat(70));
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(`
+    const worker = new Worker(
+      `
       const { parentPort, workerData } = require('worker_threads');
-      const LibRaw = require(${JSON.stringify(path.join(__dirname, '../lib/index.js'))});
+      const LibRaw = require(${JSON.stringify(
+        path.join(__dirname, "../lib/index.js")
+      )});
       
       async function run() {
         try {
@@ -290,11 +318,13 @@ async function testSequentialOperations() {
       }
       
       run();
-    `, { eval: true, workerData: { filePath: TEST_IMAGE, iterations: 10 } });
+    `,
+      { eval: true, workerData: { filePath: TEST_IMAGE, iterations: 10 } }
+    );
 
-    worker.on('message', (msg) => {
+    worker.on("message", (msg) => {
       if (msg.success) {
-        console.log('✓ Sequential operations completed');
+        console.log("✓ Sequential operations completed");
         console.log(`  Iterations: ${msg.iterations}`);
         console.log(`  Memory usage after ${msg.iterations} operations:`);
         console.log(`    Heap Used: ${msg.memoryUsage.heapUsed} MB`);
@@ -303,13 +333,13 @@ async function testSequentialOperations() {
         console.log(`    RSS: ${msg.memoryUsage.rss} MB`);
         resolve();
       } else {
-        console.error('✗ Sequential operations failed:', msg.error);
+        console.error("✗ Sequential operations failed:", msg.error);
         reject(new Error(msg.error));
       }
     });
 
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker stopped with exit code ${code}`));
       }
@@ -319,17 +349,20 @@ async function testSequentialOperations() {
 
 // Test 6: Concurrent workers processing different files
 async function testConcurrentWorkers() {
-  console.log('\n[Test 6] Concurrent Workers (8 parallel instances)');
-  console.log('-'.repeat(70));
+  console.log("\n[Test 6] Concurrent Workers (8 parallel instances)");
+  console.log("-".repeat(70));
 
   const workerCount = 8;
   const startTime = Date.now();
 
   const workerPromises = Array.from({ length: workerCount }, (_, index) => {
     return new Promise((resolve, reject) => {
-      const worker = new Worker(`
+      const worker = new Worker(
+        `
         const { parentPort, workerData } = require('worker_threads');
-        const LibRaw = require(${JSON.stringify(path.join(__dirname, '../lib/index.js'))});
+        const LibRaw = require(${JSON.stringify(
+          path.join(__dirname, "../lib/index.js")
+        )});
         
         async function run() {
           try {
@@ -357,9 +390,11 @@ async function testConcurrentWorkers() {
         }
         
         run();
-      `, { eval: true, workerData: { filePath: TEST_IMAGE, workerIndex: index } });
+      `,
+        { eval: true, workerData: { filePath: TEST_IMAGE, workerIndex: index } }
+      );
 
-      worker.on('message', (msg) => {
+      worker.on("message", (msg) => {
         if (msg.success) {
           resolve(msg);
         } else {
@@ -367,8 +402,8 @@ async function testConcurrentWorkers() {
         }
       });
 
-      worker.on('error', reject);
-      worker.on('exit', (code) => {
+      worker.on("error", reject);
+      worker.on("exit", (code) => {
         if (code !== 0) {
           reject(new Error(`Worker ${index} stopped with exit code ${code}`));
         }
@@ -381,29 +416,38 @@ async function testConcurrentWorkers() {
     const endTime = Date.now();
     const totalTime = endTime - startTime;
 
-    console.log('✓ All concurrent workers completed successfully');
+    console.log("✓ All concurrent workers completed successfully");
     console.log(`  Workers: ${workerCount}`);
     console.log(`  Total time: ${totalTime} ms`);
-    console.log(`  Average per worker: ${(totalTime / workerCount).toFixed(2)} ms`);
-    
+    console.log(
+      `  Average per worker: ${(totalTime / workerCount).toFixed(2)} ms`
+    );
+
     results.forEach((result, index) => {
-      console.log(`  Worker ${index}: ${(result.bufferSize / 1024).toFixed(2)} KB in ${result.processingTimeMs} ms`);
+      console.log(
+        `  Worker ${index}: ${(result.bufferSize / 1024).toFixed(2)} KB in ${
+          result.processingTimeMs
+        } ms`
+      );
     });
   } catch (error) {
-    console.error('✗ Concurrent workers test failed:', error.message);
+    console.error("✗ Concurrent workers test failed:", error.message);
     throw error;
   }
 }
 
 // Test 7: Error handling in worker context
 async function testErrorHandling() {
-  console.log('\n[Test 7] Error Handling in Worker Context');
-  console.log('-'.repeat(70));
+  console.log("\n[Test 7] Error Handling in Worker Context");
+  console.log("-".repeat(70));
 
   return new Promise((resolve, reject) => {
-    const worker = new Worker(`
+    const worker = new Worker(
+      `
       const { parentPort } = require('worker_threads');
-      const LibRaw = require(${JSON.stringify(path.join(__dirname, '../lib/index.js'))});
+      const LibRaw = require(${JSON.stringify(
+        path.join(__dirname, "../lib/index.js")
+      )});
       
       async function run() {
         try {
@@ -424,22 +468,24 @@ async function testErrorHandling() {
       }
       
       run();
-    `, { eval: true });
+    `,
+      { eval: true }
+    );
 
-    worker.on('message', (msg) => {
+    worker.on("message", (msg) => {
       if (msg.errorCaught) {
-        console.log('✓ Error properly caught and serialized in worker');
+        console.log("✓ Error properly caught and serialized in worker");
         console.log(`  Error type: ${msg.errorType}`);
         console.log(`  Error message: ${msg.errorMessage}`);
         resolve();
       } else {
-        console.error('✗ Error handling test failed');
-        reject(new Error('Error was not caught'));
+        console.error("✗ Error handling test failed");
+        reject(new Error("Error was not caught"));
       }
     });
 
-    worker.on('error', reject);
-    worker.on('exit', (code) => {
+    worker.on("error", reject);
+    worker.on("exit", (code) => {
       if (code !== 0) {
         reject(new Error(`Worker stopped with exit code ${code}`));
       }
@@ -450,13 +496,13 @@ async function testErrorHandling() {
 // Run all tests
 async function runAllTests() {
   const tests = [
-    { name: 'Basic Instantiation', fn: testBasicWorkerInstantiation },
-    { name: 'Load File', fn: testLoadFileInWorker },
-    { name: 'Process Image', fn: testProcessImageInWorker },
-    { name: 'High-Level API', fn: testProcessRawThumbnailInWorker },
-    { name: 'Sequential Operations', fn: testSequentialOperations },
-    { name: 'Concurrent Workers', fn: testConcurrentWorkers },
-    { name: 'Error Handling', fn: testErrorHandling }
+    { name: "Basic Instantiation", fn: testBasicWorkerInstantiation },
+    { name: "Load File", fn: testLoadFileInWorker },
+    { name: "Process Image", fn: testProcessImageInWorker },
+    { name: "High-Level API", fn: testProcessRawThumbnailInWorker },
+    { name: "Sequential Operations", fn: testSequentialOperations },
+    { name: "Concurrent Workers", fn: testConcurrentWorkers },
+    { name: "Error Handling", fn: testErrorHandling },
   ];
 
   const startTime = Date.now();
@@ -476,14 +522,14 @@ async function runAllTests() {
   const endTime = Date.now();
   const totalTime = endTime - startTime;
 
-  console.log('\n' + '='.repeat(70));
-  console.log('Test Summary');
-  console.log('='.repeat(70));
+  console.log("\n" + "=".repeat(70));
+  console.log("Test Summary");
+  console.log("=".repeat(70));
   console.log(`Total tests: ${tests.length}`);
   console.log(`Passed: ${passed}`);
   console.log(`Failed: ${failed}`);
   console.log(`Total time: ${totalTime} ms`);
-  console.log('='.repeat(70));
+  console.log("=".repeat(70));
 
   process.exit(failed > 0 ? 1 : 0);
 }
@@ -491,12 +537,12 @@ async function runAllTests() {
 // Check if test image exists
 if (!fs.existsSync(TEST_IMAGE)) {
   console.error(`Error: Test image not found: ${TEST_IMAGE}`);
-  console.error('Please ensure sample-images/Canon_40D.CR2 exists');
+  console.error("Please ensure sample-images/Canon_40D.CR2 exists");
   process.exit(1);
 }
 
 // Run tests
 runAllTests().catch((error) => {
-  console.error('Fatal error:', error);
+  console.error("Fatal error:", error);
   process.exit(1);
 });

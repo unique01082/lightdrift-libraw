@@ -1,9 +1,11 @@
 # Worker Thread Support - Implementation Summary
 
 ## Version
+
 **1.0.0-beta.1** (Released: January 6, 2026)
 
 ## Overview
+
 lightdrift-libraw now has full worker thread compatibility, enabling true parallel processing of RAW images across multiple CPU cores.
 
 ## ✅ Implementation Checklist
@@ -11,11 +13,13 @@ lightdrift-libraw now has full worker thread compatibility, enabling true parall
 ### Core Changes
 
 - [x] **Native Addon Thread Safety**
+
   - Updated `src/addon.cpp` to use `NODE_GYP_MODULE_NAME` for context-aware initialization
   - Verified `node-addon-api` ObjectWrap pattern provides proper isolation
   - Each worker gets independent LibRaw instance with no shared global state
 
 - [x] **High-Level API**
+
   - Added `processRawThumbnail()` method in `lib/index.js`
   - Single-call processing optimized for worker serialization boundary
   - Supports JPEG, PNG, WebP formats
@@ -29,6 +33,7 @@ lightdrift-libraw now has full worker thread compatibility, enabling true parall
 ### Testing
 
 - [x] **Comprehensive Test Suite** (`test/worker-thread.test.js`)
+
   - Basic worker instantiation
   - File loading in worker context
   - Full image processing pipeline
@@ -46,6 +51,7 @@ lightdrift-libraw now has full worker thread compatibility, enabling true parall
 ### Documentation
 
 - [x] **Comprehensive Guide** (`docs/WORKER_THREADS.md`)
+
   - Quick start examples
   - Worker pool implementation
   - Memory management best practices
@@ -55,6 +61,7 @@ lightdrift-libraw now has full worker thread compatibility, enabling true parall
   - Migration examples
 
 - [x] **README Updates**
+
   - Feature list updated with worker thread support
   - Quick example in main documentation
   - Link to comprehensive worker guide
@@ -69,11 +76,13 @@ lightdrift-libraw now has full worker thread compatibility, enabling true parall
 ### Package Updates
 
 - [x] **Version Bump**
+
   - Updated from `1.0.0-alpha.6` to `1.0.0-beta.1`
   - Added worker thread keywords
   - Updated package description
 
 - [x] **New Scripts** (package.json)
+
   - `npm run test:workers` - Worker thread test suite
   - `npm run test:worker-memory` - Memory leak tests
 
@@ -86,6 +95,7 @@ lightdrift-libraw now has full worker thread compatibility, enabling true parall
 ## Thread Safety Guarantees
 
 ✅ **Verified Thread-Safe:**
+
 - Context-aware N-API initialization
 - Isolated LibRaw instances per worker
 - No shared global state
@@ -96,6 +106,7 @@ lightdrift-libraw now has full worker thread compatibility, enabling true parall
 ## API Methods (All Worker-Safe)
 
 All existing methods work in worker threads:
+
 - `loadFile()`, `loadBuffer()`
 - `processImage()`, `unpackThumbnail()`
 - `createJPEGBuffer()`, `createPNGBuffer()`, `createWebPBuffer()`
@@ -104,6 +115,7 @@ All existing methods work in worker threads:
 - `close()`
 
 **New Method:**
+
 - `processRawThumbnail(options)` - High-level worker-optimized API
 
 ## Performance Benefits
@@ -124,16 +136,16 @@ All existing methods work in worker threads:
 
 ```javascript
 // worker.js
-const { parentPort, workerData } = require('worker_threads');
-const LibRaw = require('lightdrift-libraw');
+const { parentPort, workerData } = require("worker_threads");
+const LibRaw = require("lightdrift-libraw");
 
 async function process() {
   const processor = new LibRaw();
   const result = await processor.processRawThumbnail({
     filePath: workerData.filePath,
-    format: 'jpeg',
+    format: "jpeg",
     maxSize: 800,
-    quality: 85
+    quality: 85,
   });
   parentPort.postMessage(result);
 }
@@ -142,20 +154,21 @@ process();
 
 ```javascript
 // main.js
-const { Worker } = require('worker_threads');
+const { Worker } = require("worker_threads");
 
-const worker = new Worker('./worker.js', {
-  workerData: { filePath: './photo.cr2' }
+const worker = new Worker("./worker.js", {
+  workerData: { filePath: "./photo.cr2" },
 });
 
-worker.on('message', (result) => {
-  console.log('Processed:', result.fileSize, 'bytes');
+worker.on("message", (result) => {
+  console.log("Processed:", result.fileSize, "bytes");
 });
 ```
 
 ## Testing
 
 Run worker thread tests:
+
 ```bash
 npm run test:workers          # Comprehensive worker thread tests
 npm run test:worker-memory     # Memory leak detection (100+ ops)
@@ -168,6 +181,7 @@ npm run test:worker-memory     # Memory leak detection (100+ ops)
 ## Migration Path
 
 ### Before (Single Thread)
+
 ```javascript
 for (const file of files) {
   const processor = new LibRaw();
@@ -179,10 +193,11 @@ for (const file of files) {
 ```
 
 ### After (Worker Threads - 8x faster)
+
 ```javascript
-const pool = new WorkerPool('./worker.js', 8);
+const pool = new WorkerPool("./worker.js", 8);
 const results = await Promise.all(
-  files.map(file => pool.execute({ filePath: file }))
+  files.map((file) => pool.execute({ filePath: file }))
 );
 await pool.close();
 ```
@@ -190,23 +205,28 @@ await pool.close();
 ## Files Changed
 
 ### Source Code
+
 - `src/addon.cpp` - Context-aware module initialization
 - `lib/index.js` - Added `processRawThumbnail()` method
 - `lib/index.d.ts` - TypeScript definitions
 
 ### Tests
+
 - `test/worker-thread.test.js` - Comprehensive test suite
 - `test/worker-memory-leak.test.js` - Memory leak detection
 
 ### Documentation
+
 - `docs/WORKER_THREADS.md` - Complete worker thread guide
 - `README.md` - Updated with worker thread examples
 - `CHANGELOG.md` - Release notes for 1.0.0-beta.1
 
 ### Examples
+
 - `examples/worker-thread-example.js` - Practical usage
 
 ### Configuration
+
 - `package.json` - Version bump, new scripts, keywords
 
 ## Next Steps for Users
