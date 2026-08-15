@@ -13,7 +13,7 @@ describe("Stable v1 plan contract", () => {
 
     expect(manifest).toMatchObject({
       name: "lightdrift-libraw",
-      version: "1.0.0-rc.2",
+      version: "1.0.0",
       engines: { node: "^22.0.0 || ^24.0.0" },
       main: "dist/index.cjs",
       module: "dist/index.mjs",
@@ -217,11 +217,13 @@ describe("Stable v1 plan contract", () => {
         text("docs/platform-support.md"),
         text("docs/source-build.md"),
         text("THIRD_PARTY_NOTICES.md"),
-        text("docs/releases/1.0.0-rc.2.md"),
+        text("docs/releases/1.0.0.md"),
       ]);
 
     expect(readme).toContain("deterministic heuristic");
     expect(readme).toContain("does not claim streaming support");
+    expect(readme).toContain("npm install lightdrift-libraw");
+    expect(readme).not.toContain("npm install lightdrift-libraw@next");
     expect(mapping).toContain("api/libraw-0.22.2.json");
     expect(lifecycle).toContain("close()` waits for queued work");
     expect(lifecycle).toContain("buffered inside the processor worker");
@@ -234,9 +236,10 @@ describe("Stable v1 plan contract", () => {
     expect(sourceBuild).toContain("vendor/zlib-1.3.2");
     expect(notices).toContain("LibRaw 0.22.2");
     expect(notices).toContain("zlib 1.3.2");
-    expect(docsHub).toContain("releases/1.0.0-rc.2.md");
-    expect(releaseNotes).toContain("1.0.0-rc.2");
-    expect(releaseNotes).toContain("Promotion to 1.0.0");
+    expect(docsHub).toContain("releases/1.0.0.md");
+    expect(releaseNotes).toContain("lightdrift-libraw 1.0.0");
+    expect(releaseNotes).toContain("npm install lightdrift-libraw");
+    expect(releaseNotes).toContain("`latest`");
   });
 
   it("uses assertion-based stable gates instead of console diagnostics", async () => {

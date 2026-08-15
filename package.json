@@ -1,6 +1,6 @@
 {
   "name": "lightdrift-libraw",
-  "version": "1.0.0-rc.2",
+  "version": "1.0.0",
   "description": "Decode camera RAW files, inspect metadata, extract thumbnails, and render images in Node.js.",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
