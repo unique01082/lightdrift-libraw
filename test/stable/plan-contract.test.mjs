@@ -179,6 +179,7 @@ describe("Stable v1 plan contract", () => {
       expect(checker).toContain(target);
     }
     expect(checker).toContain('process.env.REQUIRE_ALL_PREBUILDS === "1"');
+    expect(checker).toContain('shell: process.platform === "win32"');
     expect(checker).toContain('file.startsWith("sample-images/")');
     expect(checker).toContain('file.startsWith("output/")');
     expect(checker).toContain('file.startsWith("test/")');

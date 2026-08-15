@@ -6,18 +6,23 @@ const path = require("node:path");
 const npmCache = mkdtempSync(path.join(tmpdir(), "lightdrift-package-cache-"));
 
 const packed = spawnSync(
-  process.platform === "win32" ? "npm.cmd" : "npm",
+  "npm",
   ["pack", "--dry-run", "--json", "--ignore-scripts"],
   {
     cwd: process.cwd(),
     encoding: "utf8",
     env: { ...process.env, npm_config_cache: npmCache },
+    // npm is exposed through a .cmd shim on Windows and must be resolved by
+    // the command shell. All command arguments above are fixed constants.
+    shell: process.platform === "win32",
   },
 );
 rmSync(npmCache, { recursive: true, force: true });
 
 if (packed.status !== 0) {
-  process.stderr.write(packed.stderr || packed.stdout);
+  process.stderr.write(
+    packed.stderr || packed.stdout || packed.error?.stack || "npm pack failed\n",
+  );
   process.exit(packed.status || 1);
 }
 

@@ -32,6 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not treat Windows backslashes as shell escapes.
 - Removed the disabled RawSpeed camera-file binding so Windows static builds do
   not retain an unavailable RawSpeed linker dependency.
+- Made the npm package-content gate resolve the npm command through the Windows
+  command shell and report command-launch failures safely.
 - `openFile()` follows upstream open-only semantics; `loadFile()` remains the
   recycle → open → unpack convenience workflow.
 

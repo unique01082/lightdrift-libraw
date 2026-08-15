@@ -81,6 +81,9 @@ runner.
 - Removed the uncontracted native RawSpeed camera-file wrapper. RawSpeed is
   disabled by the v1 profile, and retaining the call left an unresolved symbol
   in the Windows static addon link.
+- Made the package-content checker invoke npm through the Windows command shell
+  so the `.cmd` shim resolves on hosted runners, with explicit launch-error
+  reporting instead of writing an undefined stream chunk.
 
 ## Local verification
 
