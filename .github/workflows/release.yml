@@ -177,8 +177,26 @@ jobs:
           node -e "const sdk = require('lightdrift-libraw'); const Legacy = require('lightdrift-libraw/legacy'); if (sdk.LibRaw.version() !== '0.22.2' || typeof new Legacy().close !== 'function') process.exit(1)"
           node --input-type=module -e "import { LibRaw } from 'lightdrift-libraw'; import Legacy from 'lightdrift-libraw/legacy'; if (LibRaw.version() !== '0.22.2' || typeof new Legacy().close !== 'function') process.exit(1)"
 
+  electron-consumer:
+    name: Electron 36 Windows x64 release consumer
+    needs: package
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Load the packaged Node-API prebuild in Electron 36.9.5
+        shell: pwsh
+        run: |
+          $package = Get-ChildItem lightdrift-libraw-*.tgz | Select-Object -First 1
+          node scripts/test-electron-consumer.js $package.FullName
+
   publish:
-    needs: [package, consumer]
+    needs: [package, consumer, electron-consumer]
     runs-on: ubuntu-24.04
     environment: npm
     steps:

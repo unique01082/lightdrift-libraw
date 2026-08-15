@@ -184,6 +184,10 @@ not support Node.js 20, Alpine/musl, browsers, WASM, or a system LibRaw. See the
 [complete platform matrix](docs/platform-support.md) and
 [source-build prerequisites](docs/source-build.md).
 
+Electron 36 can load the same Node-API prebuild in a Node-enabled main or
+utility process; no `@electron/rebuild` step is required. Windows x64 Electron
+36.9.5 is covered by a packaged-consumer CI gate.
+
 Inputs are complete files or buffers. The SDK does not claim streaming support;
 wrapping a completed buffer in a Node.js stream is not incremental RAW decoding.
 

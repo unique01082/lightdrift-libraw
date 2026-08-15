@@ -124,6 +124,11 @@ describe("Stable v1 plan contract", () => {
     expect(ci).toContain("npm install --ignore-scripts ./package.tgz");
     expect(ci).toContain("pnpm audit --prod --audit-level high");
     expect(ci).toMatch(/name: Prebuilt tarball consumer Node \$\{\{ matrix\.node \}\}/);
+    expect(ci).toContain("name: Electron 36 Windows x64 consumer");
+    expect(ci).toContain("node scripts/test-electron-consumer.js");
+    await expect(
+      stat(path.join(root, "scripts/test-electron-consumer.js")),
+    ).resolves.toMatchObject({ size: expect.any(Number) });
   });
 
   it("allows native RAW workflows enough time on constrained CI runners", async () => {
@@ -146,7 +151,9 @@ describe("Stable v1 plan contract", () => {
     expect(release).toContain(
       "needs: [prebuild, source-fallback, sanitizers, security]",
     );
-    expect(release).toContain("needs: [package, consumer]");
+    expect(release).toContain("name: Electron 36 Windows x64 release consumer");
+    expect(release).toContain("node scripts/test-electron-consumer.js");
+    expect(release).toContain("needs: [package, consumer, electron-consumer]");
     expect(release).toContain("pnpm run build:prebuild");
     expect(release).toContain("npm_config_build_from_source=true pnpm run build:native");
     expect(release).toContain("@cyclonedx/cdxgen@12.7.0");
@@ -232,6 +239,8 @@ describe("Stable v1 plan contract", () => {
     expect(platform).toContain("Node.js 20");
     expect(platform).toContain("Alpine/musl");
     expect(platform).toContain("resource limits remain unchanged");
+    expect(platform).toContain("Electron 36");
+    expect(platform).toMatch(/Windows\s+x64/);
     expect(sourceBuild).toContain("vendor/libraw-0.22.2");
     expect(sourceBuild).toContain("vendor/zlib-1.3.2");
     expect(notices).toContain("LibRaw 0.22.2");
