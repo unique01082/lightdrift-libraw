@@ -57,6 +57,7 @@ describe("Stable v1 plan contract", () => {
     expect(binding).toContain('"USE_ZLIB"');
     expect(binding).not.toMatch(/(?:-lraw|pkg-config|brew|apt-get|USE_DNGSDK|USE_RAWSPEED|USE_JASPER|USE_LCMS|OPENMP)/i);
     expect(sourceList).toContain('!entry.name.endsWith("_ph.cpp")');
+    expect(sourceList).toContain('.replaceAll("\\\\", "/")');
     expect(librawVersion).toMatch(/LIBRAW_MAJOR_VERSION\s+0/);
     expect(librawVersion).toMatch(/LIBRAW_MINOR_VERSION\s+22/);
     expect(librawVersion).toMatch(/LIBRAW_PATCH_VERSION\s+2/);

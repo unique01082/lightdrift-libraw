@@ -76,6 +76,8 @@ runner.
 - Raised the native-workflow test timeout to cover slower hosted runners and
   limited branch-push CI to `master` so pull requests do not launch duplicate
   full native matrices.
+- Normalized dynamically discovered LibRaw source paths to forward slashes so
+  the gyp list expansion remains valid on Windows/MSBuild.
 
 ## Local verification
 

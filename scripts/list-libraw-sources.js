@@ -18,6 +18,8 @@ function walk(directory) {
 process.stdout.write(
   walk(root)
     .sort()
-    .map((file) => relative(join(__dirname, ".."), file))
+    .map((file) =>
+      relative(join(__dirname, ".."), file).replaceAll("\\", "/"),
+    )
     .join(" ")
 );

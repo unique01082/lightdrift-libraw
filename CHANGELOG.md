@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Node-gyp 11; the Windows 2025 image now exposes Visual Studio 2026.
 - Native workflow tests allow for constrained CI runners without weakening
   their behavioral assertions.
+- LibRaw source discovery now emits POSIX separators on every host so gyp does
+  not treat Windows backslashes as shell escapes.
 - `openFile()` follows upstream open-only semantics; `loadFile()` remains the
   recycle → open → unpack convenience workflow.
 
