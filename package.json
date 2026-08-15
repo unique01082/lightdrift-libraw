@@ -44,7 +44,7 @@
     "convert:jpeg": "node scripts/batch-jpeg-conversion.js",
     "version:check": "node -e \"console.log('Package:', require('./package.json').version); console.log('Node:', process.version);\"",
     "publish:check": "pnpm audit --prod --audit-level high && pnpm exec tsc --noEmit && pnpm run docs:check && pnpm run test && pnpm run package:check && pnpm run test:package",
-    "publish:dry": "npm publish --dry-run",
+    "publish:dry": "node scripts/publish-dry-run.js",
     "build:prebuild": "prebuildify --napi --strip --target 24.0.0",
     "package:check": "node scripts/check-package.js"
   },
