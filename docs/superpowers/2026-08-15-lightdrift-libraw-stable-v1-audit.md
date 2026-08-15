@@ -86,6 +86,9 @@ runner.
   reporting instead of writing an undefined stream chunk.
 - Applied the cross-platform npm launcher to the CJS, ESM, and TypeScript
   installed-tarball consumer gate as well.
+- Corrected the advanced metadata color-matrix transpose after UBSan detected
+  an out-of-bounds fourth-row read, and set a sanitizer-only five-minute test
+  timeout for RAW operations slowed substantially by instrumentation.
 
 ## Local verification
 

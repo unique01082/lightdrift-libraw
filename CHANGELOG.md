@@ -36,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   command shell and report command-launch failures safely.
 - Applied the same Windows command resolution and safe diagnostics to installed
   tarball consumer tests.
+- Fixed an out-of-bounds read while transposing LibRaw's 3-by-4 color matrix
+  into the historical four-row JavaScript metadata shape.
+- Gave sanitizer-only test runs a five-minute per-test budget to account for
+  ASan/UBSan decode overhead while retaining the normal two-minute limit.
 - `openFile()` follows upstream open-only semantics; `loadFile()` remains the
   recycle → open → unpack convenience workflow.
 

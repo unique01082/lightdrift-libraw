@@ -628,7 +628,10 @@ Napi::Value LibRawWrapper::GetAdvancedMetadata(const Napi::CallbackInfo& info) {
         for (int i = 0; i < 4; i++) {
             Napi::Array row = Napi::Array::New(env);
             for (int j = 0; j < 3; j++) {
-                row.Set(j, Napi::Number::New(env, processor->imgdata.color.cmatrix[i][j]));
+                // LibRaw stores cmatrix as [3][4]. The JS snapshot keeps the
+                // historical four-row shape, so transpose it without reading
+                // a non-existent fourth native row.
+                row.Set(j, Napi::Number::New(env, processor->imgdata.color.cmatrix[j][i]));
             }
             colorMatrix.Set(i, row);
         }

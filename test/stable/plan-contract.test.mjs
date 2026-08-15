@@ -72,6 +72,7 @@ describe("Stable v1 plan contract", () => {
 
     expect(wrapper).not.toContain("set_rawspeed_camerafile");
     expect(wrapper).not.toContain("SetRawSpeedCameraFile");
+    expect(wrapper).toContain("processor->imgdata.color.cmatrix[j][i]");
     expect(wrapperHeader).not.toContain("SetRawSpeedCameraFile");
   });
 
@@ -113,6 +114,7 @@ describe("Stable v1 plan contract", () => {
     expect(ci).toMatch(
       /LD_PRELOAD=.*ASAN_OPTIONS=.*pnpm run test:stable/,
     );
+    expect(ci).toContain("VITEST_TEST_TIMEOUT=300000");
     expect(ci).toContain("scripts/test-malformed-child.js");
     expect(ci).toContain("REQUIRE_ALL_PREBUILDS=1");
     expect(ci).toContain("npm install --ignore-scripts ./package.tgz");
@@ -122,7 +124,9 @@ describe("Stable v1 plan contract", () => {
 
   it("allows native RAW workflows enough time on constrained CI runners", async () => {
     const config = await text("vitest.config.ts");
-    expect(config).toContain("testTimeout: 120_000");
+    expect(config).toContain(
+      "testTimeout: Number(process.env.VITEST_TEST_TIMEOUT ?? 120_000)",
+    );
   });
 
   it("gates trusted RC/stable publication on builds, consumers, provenance, and SBOM", async () => {
@@ -143,6 +147,7 @@ describe("Stable v1 plan contract", () => {
     expect(release).toMatch(
       /LD_PRELOAD=.*ASAN_OPTIONS=.*pnpm run test:stable/,
     );
+    expect(release).toContain("VITEST_TEST_TIMEOUT=300000");
     expect(release).toContain("--spec-version 1.6");
     expect(release).toContain("--provenance");
     expect(release).toContain('echo "tag=next"');

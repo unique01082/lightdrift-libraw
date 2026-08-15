@@ -3,6 +3,6 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     include: ["test/stable/**/*.test.{ts,mts,js,mjs}"],
-    testTimeout: 120_000,
+    testTimeout: Number(process.env.VITEST_TEST_TIMEOUT ?? 120_000),
   },
 });

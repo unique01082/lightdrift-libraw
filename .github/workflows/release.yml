@@ -110,7 +110,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run build
-      - run: LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=0 pnpm run test:stable
+      - run: LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=0 VITEST_TEST_TIMEOUT=300000 pnpm run test:stable
       - run: LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=1 node scripts/test-malformed-child.js
 
   package:
