@@ -1,17 +1,21 @@
 # Buffer/Stream API Documentation
 
+> **Historical beta reference.** This page documents beta-shaped convenience
+> results and is retained for `lightdrift-libraw/legacy` users. The stable API
+> accepts complete buffers but does not provide incremental stream decoding.
+
 The LibRaw Node.js wrapper now supports modern buffer-based operations that return image data directly in memory instead of writing to files. This is perfect for web services, cloud applications, and real-time image processing pipelines.
 
 ## Overview
 
 The buffer API provides several key advantages:
 
-- **🚀 Performance**: No filesystem I/O overhead
+- **🚀 In-memory output**: Avoid temporary output files
 - **🌐 Web-Ready**: Perfect for HTTP responses and API endpoints
 - **☁️ Cloud-Native**: Direct upload to cloud storage services
-- **🔄 Streamable**: Use with Node.js streams and pipelines
+- **🔄 Composable**: Pass completed buffers to Node.js streams and pipelines
 - **💾 Memory Efficient**: Process without temporary files
-- **⚡ Real-time**: Ideal for serverless and lambda functions
+- **⚡ Application-ready**: Suitable for services and serverless functions
 
 ## Available Methods
 
@@ -574,10 +578,10 @@ module.exports = async (req, res) => {
 
 The buffer API transforms LibRaw from a traditional file-processing library into a modern, cloud-ready image processing solution. Key benefits:
 
-- **🚀 Performance**: 20-50% faster than file-based operations
+- **🚀 In-memory output**: Avoid temporary output files
 - **🌐 Web-Ready**: Perfect for HTTP APIs and real-time services
 - **☁️ Cloud-Native**: Direct integration with cloud storage
-- **🔄 Streamable**: Works with Node.js streams and pipelines
+- **🔄 Composable**: Completed buffers work with Node.js streams and pipelines
 - **💾 Efficient**: No temporary files or disk I/O
 - **⚡ Scalable**: Ideal for serverless and containerized deployments
 

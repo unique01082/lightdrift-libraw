@@ -13,7 +13,7 @@ describe("Stable v1 plan contract", () => {
 
     expect(manifest).toMatchObject({
       name: "lightdrift-libraw",
-      version: "1.0.0-rc.1",
+      version: "1.0.0-rc.2",
       engines: { node: "^22.0.0 || ^24.0.0" },
       main: "dist/index.cjs",
       module: "dist/index.mjs",
@@ -38,6 +38,9 @@ describe("Stable v1 plan contract", () => {
     );
     expect(manifest.scripts["publish:check"]).toContain("tsc --noEmit");
     expect(manifest.scripts["publish:check"]).toContain("test:package");
+    expect(manifest.scripts["publish:dry"]).toBe(
+      "node scripts/publish-dry-run.js",
+    );
     expect(manifest.files).not.toEqual(
       expect.arrayContaining([expect.stringMatching(/sample-images|^test\/|^output\//)]),
     );
@@ -131,7 +134,10 @@ describe("Stable v1 plan contract", () => {
   });
 
   it("gates trusted RC/stable publication on builds, consumers, provenance, and SBOM", async () => {
-    const release = await text(".github/workflows/release.yml");
+    const [release, dryRun] = await Promise.all([
+      text(".github/workflows/release.yml"),
+      text("scripts/publish-dry-run.js"),
+    ]);
 
     expect(release).toContain("runner: windows-2022");
     expect(release).not.toContain("runner: windows-2025");
@@ -156,6 +162,8 @@ describe("Stable v1 plan contract", () => {
     expect(release).toContain('echo "tag=latest"');
     expect(release).toContain("'v' + require('./package.json').version");
     expect(release).not.toMatch(/NODE_AUTH_TOKEN|NPM_TOKEN/);
+    expect(dryRun).toContain('version.includes("-") ? "next" : "latest"');
+    expect(dryRun).toContain('"publish", "--dry-run", "--tag", distTag');
   });
 
   it("enforces npm contents, all-prebuild assembly, and excluded artifacts", async () => {
@@ -209,7 +217,7 @@ describe("Stable v1 plan contract", () => {
         text("docs/platform-support.md"),
         text("docs/source-build.md"),
         text("THIRD_PARTY_NOTICES.md"),
-        text("docs/releases/1.0.0-rc.1.md"),
+        text("docs/releases/1.0.0-rc.2.md"),
       ]);
 
     expect(readme).toContain("deterministic heuristic");
@@ -226,9 +234,9 @@ describe("Stable v1 plan contract", () => {
     expect(sourceBuild).toContain("vendor/zlib-1.3.2");
     expect(notices).toContain("LibRaw 0.22.2");
     expect(notices).toContain("zlib 1.3.2");
-    expect(docsHub).toContain("releases/1.0.0-rc.1.md");
-    expect(releaseNotes).toContain("1.0.0-rc.1");
-    expect(releaseNotes).toContain("Promotion gates");
+    expect(docsHub).toContain("releases/1.0.0-rc.2.md");
+    expect(releaseNotes).toContain("1.0.0-rc.2");
+    expect(releaseNotes).toContain("Promotion to 1.0.0");
   });
 
   it("uses assertion-based stable gates instead of console diagnostics", async () => {

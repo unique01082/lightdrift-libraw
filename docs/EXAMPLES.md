@@ -1,5 +1,10 @@
 # Usage Examples
 
+> **Compatibility note:** This document was written for the deprecated beta
+> API and is retained for `lightdrift-libraw/legacy` users. New applications
+> should start with the [stable getting-started guide](getting-started.md) and
+> use the named `LibRaw` export from the package root.
+
 ## Basic RAW File Processing
 
 ```javascript
