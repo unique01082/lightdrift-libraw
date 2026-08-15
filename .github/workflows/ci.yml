@@ -134,7 +134,7 @@ jobs:
       - name: Full stable suite under ASan and UBSan
         run: LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=0 VITEST_TEST_TIMEOUT=300000 pnpm run test:stable
       - name: Malformed input under ASan and UBSan
-        run: LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=1 node scripts/test-malformed-child.js
+        run: LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=0 node scripts/test-malformed-child.js
 
   package-all-prebuilds:
     needs: prebuild

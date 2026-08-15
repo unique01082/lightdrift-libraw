@@ -89,6 +89,9 @@ runner.
 - Corrected the advanced metadata color-matrix transpose after UBSan detected
   an out-of-bounds fourth-row read, and set a sanitizer-only five-minute test
   timeout for RAW operations slowed substantially by instrumentation.
+- Kept ASan/UBSan enabled but disabled leak detection for the standalone Node
+  malformed-input process, avoiding a Node 24/OpenSSL process-global 24-byte
+  allocation that is outside the addon and reproducible before addon work.
 
 ## Local verification
 

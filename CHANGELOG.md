@@ -40,6 +40,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into the historical four-row JavaScript metadata shape.
 - Gave sanitizer-only test runs a five-minute per-test budget to account for
   ASan/UBSan decode overhead while retaining the normal two-minute limit.
+- Disabled LeakSanitizer for the malformed-input Node child because Node 24's
+  process-global OpenSSL initialization leaves a known 24-byte allocation;
+  AddressSanitizer and UndefinedBehaviorSanitizer remain enabled.
 - `openFile()` follows upstream open-only semantics; `loadFile()` remains the
   recycle → open → unpack convenience workflow.
 

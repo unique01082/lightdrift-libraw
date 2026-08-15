@@ -115,6 +115,7 @@ describe("Stable v1 plan contract", () => {
       /LD_PRELOAD=.*ASAN_OPTIONS=.*pnpm run test:stable/,
     );
     expect(ci).toContain("VITEST_TEST_TIMEOUT=300000");
+    expect(ci).not.toContain("ASAN_OPTIONS=detect_leaks=1");
     expect(ci).toContain("scripts/test-malformed-child.js");
     expect(ci).toContain("REQUIRE_ALL_PREBUILDS=1");
     expect(ci).toContain("npm install --ignore-scripts ./package.tgz");
@@ -148,6 +149,7 @@ describe("Stable v1 plan contract", () => {
       /LD_PRELOAD=.*ASAN_OPTIONS=.*pnpm run test:stable/,
     );
     expect(release).toContain("VITEST_TEST_TIMEOUT=300000");
+    expect(release).not.toContain("ASAN_OPTIONS=detect_leaks=1");
     expect(release).toContain("--spec-version 1.6");
     expect(release).toContain("--provenance");
     expect(release).toContain('echo "tag=next"');
