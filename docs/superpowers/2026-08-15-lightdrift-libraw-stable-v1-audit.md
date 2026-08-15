@@ -70,6 +70,9 @@ runner.
 - Added RC release notes and made `publish:check` run the dependency audit,
   typecheck, complete stable suite, package-content check, and installed
   tarball consumers as one local release gate.
+- Pinned Windows x64 CI and release prebuilds to `windows-2022` after the
+  `windows-2025` image moved to Visual Studio 2026, which Node-gyp 11 cannot
+  currently discover.
 
 ## Local verification
 

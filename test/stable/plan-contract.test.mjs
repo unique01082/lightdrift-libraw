@@ -92,6 +92,8 @@ describe("Stable v1 plan contract", () => {
       expect(ci).toContain(`platform: ${target}`);
     }
     expect(ci).toContain("node: [22, 24]");
+    expect(ci).toContain("runner: windows-2022");
+    expect(ci).not.toContain("runner: windows-2025");
     expect(ci).toContain("npm_config_build_from_source=true");
     expect(ci).toContain("pnpm run build:prebuild");
     expect(ci).toContain("-fsanitize=address,undefined");
@@ -107,6 +109,9 @@ describe("Stable v1 plan contract", () => {
 
   it("gates trusted RC/stable publication on builds, consumers, provenance, and SBOM", async () => {
     const release = await text(".github/workflows/release.yml");
+
+    expect(release).toContain("runner: windows-2022");
+    expect(release).not.toContain("runner: windows-2025");
 
     expect(release).toContain("id-token: write");
     expect(release).toContain(

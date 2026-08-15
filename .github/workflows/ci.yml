@@ -62,7 +62,7 @@ jobs:
           - platform: darwin-arm64
             runner: macos-15
           - platform: win32-x64
-            runner: windows-2025
+            runner: windows-2022
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
