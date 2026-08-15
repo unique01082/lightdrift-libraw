@@ -152,7 +152,10 @@ describe("Stable v1 plan contract", () => {
   });
 
   it("enforces npm contents, all-prebuild assembly, and excluded artifacts", async () => {
-    const checker = await text("scripts/check-package.js");
+    const [checker, consumers] = await Promise.all([
+      text("scripts/check-package.js"),
+      text("scripts/test-package-consumers.js"),
+    ]);
 
     for (const required of [
       "README.md",
@@ -180,6 +183,9 @@ describe("Stable v1 plan contract", () => {
     }
     expect(checker).toContain('process.env.REQUIRE_ALL_PREBUILDS === "1"');
     expect(checker).toContain('shell: process.platform === "win32"');
+    expect(consumers).toContain(
+      'shell: process.platform === "win32" && command === npm',
+    );
     expect(checker).toContain('file.startsWith("sample-images/")');
     expect(checker).toContain('file.startsWith("output/")');
     expect(checker).toContain('file.startsWith("test/")');

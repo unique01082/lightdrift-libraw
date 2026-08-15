@@ -84,6 +84,8 @@ runner.
 - Made the package-content checker invoke npm through the Windows command shell
   so the `.cmd` shim resolves on hosted runners, with explicit launch-error
   reporting instead of writing an undefined stream chunk.
+- Applied the cross-platform npm launcher to the CJS, ESM, and TypeScript
+  installed-tarball consumer gate as well.
 
 ## Local verification
 

@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   not retain an unavailable RawSpeed linker dependency.
 - Made the npm package-content gate resolve the npm command through the Windows
   command shell and report command-launch failures safely.
+- Applied the same Windows command resolution and safe diagnostics to installed
+  tarball consumer tests.
 - `openFile()` follows upstream open-only semantics; `loadFile()` remains the
   recycle → open → unpack convenience workflow.
 

@@ -13,7 +13,7 @@ const { spawnSync } = require("node:child_process");
 const temporary = mkdtempSync(path.join(tmpdir(), "lightdrift-consumer-"));
 const npmCache = path.join(temporary, "npm-cache");
 mkdirSync(npmCache);
-const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+const npm = "npm";
 
 function run(command, args, cwd) {
   const result = spawnSync(command, args, {
@@ -24,10 +24,17 @@ function run(command, args, cwd) {
       npm_config_cache: npmCache,
       npm_config_engine_strict: "false",
     },
+    // Resolve npm's .cmd shim on Windows; Node executables continue to spawn
+    // directly so their argument boundaries are preserved.
+    shell: process.platform === "win32" && command === npm,
   });
   if (result.status !== 0) {
-    process.stderr.write(result.stdout);
-    process.stderr.write(result.stderr);
+    const diagnostic =
+      result.stdout ||
+      result.stderr ||
+      result.error?.stack ||
+      `Command failed: ${command}\n`;
+    process.stderr.write(diagnostic);
     process.exit(result.status || 1);
   }
 }
