@@ -26,7 +26,7 @@ npm run test:image-processing
 
 **Sample Output:**
 
-```
+```text
 🧪 LibRaw Image Processing Test Suite
 =====================================
 Found 3 test files
@@ -69,7 +69,7 @@ npm run test:format-conversion
 
 **Sample Output:**
 
-```
+```text
 🧪 LibRaw Format Conversion Test Suite
 ======================================
 Found 2 test files
@@ -114,7 +114,7 @@ npm run test:thumbnail-extraction
 
 **Sample Output:**
 
-```
+```text
 🧪 LibRaw Thumbnail Extraction Test Suite
 ==========================================
 Found 5 test files
@@ -174,7 +174,7 @@ This runs:
 
 Tests expect sample RAW files in `sample-images/` directory:
 
-```
+```text
 sample-images/
 ├── sample.cr2        # Canon RAW
 ├── sample.nef        # Nikon RAW

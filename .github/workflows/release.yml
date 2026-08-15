@@ -135,6 +135,7 @@ jobs:
       - run: pnpm run build:js
       - name: Verify tag matches package version
         run: node -e "if ('v' + require('./package.json').version !== process.env.GITHUB_REF_NAME) process.exit(1)"
+      - run: pnpm run docs:check
       - run: REQUIRE_ALL_PREBUILDS=1 pnpm run package:check
       - run: pnpm run test:package
       - run: npm pack --ignore-scripts

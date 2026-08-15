@@ -44,6 +44,7 @@ jobs:
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm run build
+      - run: pnpm run docs:check
       - run: pnpm run test:stable
       - run: node scripts/test-malformed-child.js
 
