@@ -117,7 +117,6 @@ Napi::Object LibRawWrapper::Init(Napi::Env env, Napi::Object exports) {
 
         InstanceMethod("phaseOneSubtractBlack", &LibRawWrapper::PhaseOneSubtractBlack),
         InstanceMethod("phaseOneCorrect", &LibRawWrapper::PhaseOneCorrect),
-        InstanceMethod("setRawSpeedCameraFile", &LibRawWrapper::SetRawSpeedCameraFile),
         InstanceMethod("adobeCoeff", &LibRawWrapper::AdobeCoeff),
         
         // Cancellation Support
@@ -1781,23 +1780,6 @@ Napi::Value LibRawWrapper::PhaseOneCorrect(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     if (!CheckLoaded(env)) return env.Null();
     int ret = processor->phase_one_correct();
-    if (ret != LIBRAW_SUCCESS) {
-        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
-        error.Set("librawCode", Napi::Number::New(env, ret));
-        error.ThrowAsJavaScriptException();
-        return env.Null();
-    }
-    return env.Undefined();
-}
-
-Napi::Value LibRawWrapper::SetRawSpeedCameraFile(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    if (info.Length() < 1 || !info[0].IsString()) {
-        Napi::TypeError::New(env, "Expected camera file path").ThrowAsJavaScriptException();
-        return env.Null();
-    }
-    std::string filename = info[0].As<Napi::String>().Utf8Value();
-    int ret = processor->set_rawspeed_camerafile(filename.data());
     if (ret != LIBRAW_SUCCESS) {
         Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
         error.Set("librawCode", Napi::Number::New(env, ret));

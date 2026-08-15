@@ -64,6 +64,17 @@ describe("Stable v1 plan contract", () => {
     expect(zlibHeader).toMatch(/ZLIB_VERSION\s+"1\.3\.2"/);
   });
 
+  it("does not link the RawSpeed camera-file API when RawSpeed is disabled", async () => {
+    const [wrapper, wrapperHeader] = await Promise.all([
+      text("src/libraw_wrapper.cpp"),
+      text("src/libraw_wrapper.h"),
+    ]);
+
+    expect(wrapper).not.toContain("set_rawspeed_camerafile");
+    expect(wrapper).not.toContain("SetRawSpeedCameraFile");
+    expect(wrapperHeader).not.toContain("SetRawSpeedCameraFile");
+  });
+
   it("keeps the TypeScript facade split by the planned responsibilities", async () => {
     for (const file of [
       "lib/stable/lifecycle.ts",

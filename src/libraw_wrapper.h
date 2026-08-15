@@ -101,7 +101,6 @@ private:
     // Phase One and optional decoder helpers
     Napi::Value PhaseOneSubtractBlack(const Napi::CallbackInfo& info);
     Napi::Value PhaseOneCorrect(const Napi::CallbackInfo& info);
-    Napi::Value SetRawSpeedCameraFile(const Napi::CallbackInfo& info);
     Napi::Value AdobeCoeff(const Napi::CallbackInfo& info);
     
     // Cancellation Support

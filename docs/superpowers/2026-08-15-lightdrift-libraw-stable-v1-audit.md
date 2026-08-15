@@ -78,6 +78,9 @@ runner.
   full native matrices.
 - Normalized dynamically discovered LibRaw source paths to forward slashes so
   the gyp list expansion remains valid on Windows/MSBuild.
+- Removed the uncontracted native RawSpeed camera-file wrapper. RawSpeed is
+  disabled by the v1 profile, and retaining the call left an unresolved symbol
+  in the Windows static addon link.
 
 ## Local verification
 
