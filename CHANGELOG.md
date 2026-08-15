@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sharp is upgraded to 0.35.3 to include current libvips security fixes.
 - Windows prebuild jobs use the Visual Studio 2022 runner supported by
   Node-gyp 11; the Windows 2025 image now exposes Visual Studio 2026.
+- Native workflow tests allow for constrained CI runners without weakening
+  their behavioral assertions.
 - `openFile()` follows upstream open-only semantics; `loadFile()` remains the
   recycle → open → unpack convenience workflow.
 

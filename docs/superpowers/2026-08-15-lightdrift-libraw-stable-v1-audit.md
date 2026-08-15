@@ -73,6 +73,9 @@ runner.
 - Pinned Windows x64 CI and release prebuilds to `windows-2022` after the
   `windows-2025` image moved to Visual Studio 2026, which Node-gyp 11 cannot
   currently discover.
+- Raised the native-workflow test timeout to cover slower hosted runners and
+  limited branch-push CI to `master` so pull requests do not launch duplicate
+  full native matrices.
 
 ## Local verification
 

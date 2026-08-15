@@ -82,6 +82,7 @@ describe("Stable v1 plan contract", () => {
   it("defines every required platform, source fallback, sanitizer, and consumer CI gate", async () => {
     const ci = await text(".github/workflows/ci.yml");
 
+    expect(ci).toContain("branches: [master]");
     for (const target of [
       "linux-x64",
       "linux-arm64",
@@ -105,6 +106,11 @@ describe("Stable v1 plan contract", () => {
     expect(ci).toContain("npm install --ignore-scripts ./package.tgz");
     expect(ci).toContain("pnpm audit --prod --audit-level high");
     expect(ci).toMatch(/name: Prebuilt tarball consumer Node \$\{\{ matrix\.node \}\}/);
+  });
+
+  it("allows native RAW workflows enough time on constrained CI runners", async () => {
+    const config = await text("vitest.config.ts");
+    expect(config).toContain("testTimeout: 120_000");
   });
 
   it("gates trusted RC/stable publication on builds, consumers, provenance, and SBOM", async () => {
