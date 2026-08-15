@@ -4,7 +4,7 @@ Decode camera RAW files, inspect photographic metadata, extract thumbnails,
 and render web-ready images from Node.js—without installing LibRaw yourself.
 
 [![npm version](https://img.shields.io/npm/v/lightdrift-libraw?label=npm)](https://www.npmjs.com/package/lightdrift-libraw)
-[![release](https://img.shields.io/npm/v/lightdrift-libraw/next?label=next)](https://www.npmjs.com/package/lightdrift-libraw/v/1.0.0-rc.2)
+[![GitHub release](https://img.shields.io/github/v/release/unique01082/lightdrift-libraw?label=release)](https://github.com/unique01082/lightdrift-libraw/releases/tag/v1.0.0)
 [![CI](https://github.com/unique01082/lightdrift-libraw/actions/workflows/ci.yml/badge.svg)](https://github.com/unique01082/lightdrift-libraw/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-22%20%7C%2024-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue)](docs/platform-support.md)
@@ -54,10 +54,10 @@ thumbnail, and render workflows. See [format support](docs/FORMATS.md) and the
 
 ## Quick start
 
-### Install the current release candidate
+### Install the stable release
 
 ```bash
-npm install lightdrift-libraw@next
+npm install lightdrift-libraw
 ```
 
 Use Node.js 22 or 24. No account, authentication, system LibRaw installation,

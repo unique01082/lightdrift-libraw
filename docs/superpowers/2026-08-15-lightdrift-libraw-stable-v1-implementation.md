@@ -12,9 +12,9 @@
 6. Add package-content, consumer, fixture, sanitizer, source-build, and
    platform prebuild workflows; document migration and release gates.
 
-The release candidate is `1.0.0-rc.1`. Promotion to `1.0.0` is version-only
-after all five platform/architecture prebuilds plus the source-fallback gate
-pass in CI.
+The RC.1 and RC.2 release candidates completed the full release matrix.
+Promotion to `1.0.0` is version-only after all five platform/architecture
+prebuilds plus the source-fallback gate pass in CI.
 
 ## Related
 

@@ -16,10 +16,10 @@ If a prebuilt binary is unavailable, follow the documented
 
 ## Install
 
-Install the current release candidate from the `next` dist-tag:
+Install the stable release from the default `latest` dist-tag:
 
 ```bash
-npm install lightdrift-libraw@next
+npm install lightdrift-libraw
 ```
 
 Confirm that the JavaScript package and native addon load:

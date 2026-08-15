@@ -45,8 +45,10 @@ marked as historical describe the deprecated beta surface.
 - [Contributing](../CONTRIBUTING.md) — Local development and pull requests.
 - [Testing reference](TESTING.md) — Historical suites plus the current test
   commands listed in `package.json`.
+- [1.0.0 release notes](releases/1.0.0.md) — Stable installation, supported
+  platforms, verification gates, provenance, and compatibility.
 - [1.0.0-rc.2 release notes](releases/1.0.0-rc.2.md) — Documentation changes,
-  compatibility, known limits, and release gates.
+  compatibility, known limits, and historical promotion gates.
 - [Stable v1 implementation plan](superpowers/2026-08-15-lightdrift-libraw-stable-v1-implementation.md)
 - [RC.2 documentation design](superpowers/specs/2026-08-15-lightdrift-libraw-rc2-documentation-design.md)
 - [RC.2 implementation plan](superpowers/plans/2026-08-15-lightdrift-libraw-rc2-documentation.md)
