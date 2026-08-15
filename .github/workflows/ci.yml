@@ -1,0 +1,189 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  security:
+    name: Production dependency audit
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm audit --prod --audit-level high
+
+  node-runtime:
+    name: Node ${{ matrix.node }} source build
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run build
+      - run: pnpm run test:stable
+      - run: node scripts/test-malformed-child.js
+
+  prebuild:
+    name: Prebuild ${{ matrix.platform }} Node 24
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux-x64
+            runner: ubuntu-24.04
+          - platform: linux-arm64
+            runner: ubuntu-24.04-arm
+          - platform: darwin-x64
+            runner: macos-15-intel
+          - platform: darwin-arm64
+            runner: macos-15
+          - platform: win32-x64
+            runner: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run build:js
+      - run: pnpm run build:prebuild
+      - run: pnpm run test:stable
+      - run: pnpm run package:check
+      - run: pnpm run test:package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prebuild-${{ matrix.platform }}
+          path: prebuilds
+          if-no-files-found: error
+
+  source-fallback:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: rm -rf prebuilds
+      - run: npm_config_build_from_source=true pnpm run build:native
+      - run: pnpm run build:js
+      - run: pnpm run test:stable
+      - name: Install source-only tarball as a consumer
+        shell: bash
+        run: |
+          npm pack --ignore-scripts
+          test_dir="$(mktemp -d)"
+          cp lightdrift-libraw-*.tgz "$test_dir/package.tgz"
+          cd "$test_dir"
+          npm init -y
+          npm_config_build_from_source=true npm install ./package.tgz
+          node -e "const sdk = require('lightdrift-libraw'); if (sdk.LibRaw.version() !== '0.22.2') process.exit(1)"
+
+  sanitizers:
+    runs-on: ubuntu-24.04
+    env:
+      CC: gcc
+      CXX: g++
+      CFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+      CXXFLAGS: -fsanitize=address,undefined -fno-omit-frame-pointer
+      LDFLAGS: -fsanitize=address,undefined
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run build
+      - name: Full stable suite under ASan and UBSan
+        run: LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=0 pnpm run test:stable
+      - name: Malformed input under ASan and UBSan
+        run: LD_PRELOAD="$(gcc -print-file-name=libasan.so)" ASAN_OPTIONS=detect_leaks=1 node scripts/test-malformed-child.js
+
+  package-all-prebuilds:
+    needs: prebuild
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: prebuild-*
+          path: prebuilds
+          merge-multiple: true
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm run build:js
+      - run: REQUIRE_ALL_PREBUILDS=1 pnpm run package:check
+      - run: npm pack --ignore-scripts
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: lightdrift-libraw-*.tgz
+          if-no-files-found: error
+
+  prebuilt-consumer:
+    name: Prebuilt tarball consumer Node ${{ matrix.node }}
+    needs: package-all-prebuilds
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install tarball without compiler or install scripts
+        shell: bash
+        run: |
+          test_dir="$(mktemp -d)"
+          cp lightdrift-libraw-*.tgz "$test_dir/package.tgz"
+          cd "$test_dir"
+          npm init -y
+          npm install --ignore-scripts ./package.tgz
+          node -e "const sdk = require('lightdrift-libraw'); const Legacy = require('lightdrift-libraw/legacy'); if (sdk.LibRaw.version() !== '0.22.2' || typeof new Legacy().close !== 'function') process.exit(1)"
+          node --input-type=module -e "import { LibRaw } from 'lightdrift-libraw'; import Legacy from 'lightdrift-libraw/legacy'; if (LibRaw.version() !== '0.22.2' || typeof new Legacy().close !== 'function') process.exit(1)"

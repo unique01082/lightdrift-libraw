@@ -3,8 +3,7 @@
  * Provides type-safe access to LibRaw functionality for RAW image processing
  */
 
-declare module 'libraw' {
-  export interface LibRawMetadata {
+  interface LibRawMetadata {
     /** Camera manufacturer */
     make?: string;
     /** Camera model */
@@ -35,7 +34,7 @@ declare module 'libraw' {
     timestamp?: number;
   }
 
-  export interface LibRawAdvancedMetadata {
+  interface LibRawAdvancedMetadata {
     /** Normalized camera manufacturer */
     normalizedMake?: string;
     /** Normalized camera model */
@@ -60,7 +59,7 @@ declare module 'libraw' {
     whiteLevel: number;
   }
 
-  export interface LibRawImageSize {
+  interface LibRawImageSize {
     /** Processed image width */
     width: number;
     /** Processed image height */
@@ -79,7 +78,7 @@ declare module 'libraw' {
     iHeight: number;
   }
 
-  export interface LibRawLensInfo {
+  interface LibRawLensInfo {
     /** Lens name/model */
     lensName?: string;
     /** Lens manufacturer */
@@ -102,7 +101,7 @@ declare module 'libraw' {
     focalLengthIn35mmFormat?: number;
   }
 
-  export interface LibRawColorInfo {
+  interface LibRawColorInfo {
     /** Number of color channels */
     colors: number;
     /** Color filter array pattern */
@@ -121,7 +120,7 @@ declare module 'libraw' {
     camMul: number[];
   }
 
-  export interface LibRawOutputParams {
+  interface LibRawOutputParams {
     /** Gamma correction curve [gamma, toe_slope] */
     gamma?: [number, number];
     /** Brightness adjustment (0.25-8.0) */
@@ -140,7 +139,7 @@ declare module 'libraw' {
     output_tiff?: boolean;
   }
 
-  export interface LibRawImageData {
+  interface LibRawImageData {
     /** Image type (1=JPEG, 3=PPM/TIFF) */
     type: number;
     /** Image height in pixels */
@@ -157,7 +156,7 @@ declare module 'libraw' {
     data: Buffer;
   }
 
-  export interface LibRawJPEGOptions {
+  interface LibRawJPEGOptions {
     /** JPEG quality (1-100) */
     quality?: number;
     /** Target width (maintains aspect ratio if height not specified) */
@@ -188,7 +187,7 @@ declare module 'libraw' {
     maxConcurrency?: number;
   }
 
-  export interface LibRawOptimalSettings {
+  interface LibRawOptimalSettings {
     quality: number;
     progressive: boolean;
     mozjpeg: boolean;
@@ -197,7 +196,7 @@ declare module 'libraw' {
     reasoning: string;
   }
 
-  export interface LibRawBufferResult {
+  interface LibRawBufferResult {
     /** Buffer creation success status */
     success: boolean;
     /** Raw binary data buffer */
@@ -242,7 +241,7 @@ declare module 'libraw' {
     };
   }
 
-  export interface LibRawImageConversionOptions {
+  interface LibRawImageConversionOptions {
     /** Target width (maintains aspect ratio if height not specified) */
     width?: number;
     /** Target height (maintains aspect ratio if width not specified) */
@@ -253,14 +252,14 @@ declare module 'libraw' {
     fastMode?: boolean;
   }
 
-  export interface LibRawPNGOptions extends LibRawImageConversionOptions {
+  interface LibRawPNGOptions extends LibRawImageConversionOptions {
     /** PNG compression level (0-9) */
     compressionLevel?: number;
     /** Use progressive PNG */
     progressive?: boolean;
   }
 
-  export interface LibRawTIFFOptions extends LibRawImageConversionOptions {
+  interface LibRawTIFFOptions extends LibRawImageConversionOptions {
     /** TIFF compression type */
     compression?: 'none' | 'lzw' | 'jpeg' | 'zip';
     /** JPEG quality when using JPEG compression */
@@ -269,7 +268,7 @@ declare module 'libraw' {
     pyramid?: boolean;
   }
 
-  export interface LibRawWebPOptions extends LibRawImageConversionOptions {
+  interface LibRawWebPOptions extends LibRawImageConversionOptions {
     /** WebP quality (1-100) */
     quality?: number;
     /** Use lossless WebP */
@@ -278,7 +277,7 @@ declare module 'libraw' {
     effort?: number;
   }
 
-  export interface LibRawAVIFOptions extends LibRawImageConversionOptions {
+  interface LibRawAVIFOptions extends LibRawImageConversionOptions {
     /** AVIF quality (1-100) */
     quality?: number;
     /** Use lossless AVIF */
@@ -287,14 +286,14 @@ declare module 'libraw' {
     effort?: number;
   }
 
-  export interface LibRawThumbnailJPEGOptions {
+  interface LibRawThumbnailJPEGOptions {
     /** JPEG quality (1-100) */
     quality?: number;
     /** Maximum dimension size */
     maxSize?: number;
   }
 
-  export interface LibRawJPEGResult {
+  interface LibRawJPEGResult {
     /** Conversion success status */
     success: boolean;
     /** Output file path */
@@ -327,7 +326,7 @@ declare module 'libraw' {
     };
   }
 
-  export interface LibRawBatchResult {
+  interface LibRawBatchResult {
     /** Successfully processed files */
     successful: Array<{
       input: string;
@@ -352,7 +351,7 @@ declare module 'libraw' {
     };
   }
 
-  export interface LibRawOptimalSettings {
+  interface LibRawOptimalSettings {
     /** Recommended JPEG settings */
     recommended: LibRawJPEGOptions & {
       reasoning: string[];
@@ -372,7 +371,7 @@ declare module 'libraw' {
     };
   }
 
-  export class LibRaw {
+  declare class LibRaw {
     constructor();
 
     // ============== FILE OPERATIONS ==============
@@ -381,6 +380,20 @@ declare module 'libraw' {
      * @param filename Path to RAW image file
      */
     loadFile(filename: string): Promise<boolean>;
+
+    /** Load headerless Bayer sensor data from a file. */
+    loadBayerData(filename: string, params: {
+      width: number;
+      height: number;
+      leftMargin?: number;
+      topMargin?: number;
+      rightMargin?: number;
+      bottomMargin?: number;
+      processingFlags?: number;
+      bayerPattern?: number;
+      unusedBits?: number;
+      otherFlags?: number;
+    }): Promise<boolean>;
 
     /**
      * Load RAW image from buffer
@@ -419,11 +432,20 @@ declare module 'libraw' {
      */
     getColorInfo(): Promise<LibRawColorInfo>;
 
+    /** Return the last native error value, if any. */
+    getLastError(): unknown;
+
+    /** Convert a LibRaw error code to its message. */
+    strerror(errorCode: number): string;
+
     // ============== IMAGE PROCESSING ==============
     /**
      * Unpack thumbnail from RAW file
      */
     unpackThumbnail(): Promise<boolean>;
+
+    /** Unpack RAW pixel data without running post-processing. */
+    unpack(): Promise<boolean>;
 
     /**
      * Process RAW image with current settings
@@ -440,10 +462,17 @@ declare module 'libraw' {
      */
     raw2Image(): Promise<boolean>;
 
+    /** Convert RAW data to an image with optional black subtraction. */
+    raw2ImageEx(subtractBlack?: boolean): Promise<boolean>;
+
     /**
      * Adjust image maximum values
      */
     adjustMaximum(): Promise<boolean>;
+
+    adjustSizesInfoOnly(): Promise<boolean>;
+    freeImage(): Promise<boolean>;
+    convertFloatToInt(dmin?: number, dmax?: number, dtarget?: number): Promise<boolean>;
 
     // ============== MEMORY IMAGE CREATION ==============
     /**
@@ -455,6 +484,16 @@ declare module 'libraw' {
      * Create thumbnail image in memory
      */
     createMemoryThumbnail(): Promise<LibRawImageData>;
+
+    getMemImageFormat(): Promise<{
+      width: number;
+      height: number;
+      colors: number;
+      bits: number;
+      dataSize: number;
+    }>;
+    copyMemImage(buffer: Buffer, stride: number, bgr?: boolean): Promise<boolean>;
+    getColorAt(row: number, column: number): Promise<number>;
 
     // ============== FILE WRITERS ==============
     /**
@@ -508,10 +547,27 @@ declare module 'libraw' {
      */
     isJPEGThumb(): Promise<boolean>;
 
+    isNikonSRAW(): Promise<boolean>;
+    isCoolscanNEF(): Promise<boolean>;
+    haveFPData(): Promise<boolean>;
+    srawMidpoint(): Promise<number>;
+    thumbOK(maxSize?: number): Promise<number>;
+    unpackFunctionName(): Promise<string>;
+    getDecoderInfo(): Promise<Record<string, unknown>>;
+
     /**
      * Get current error count
      */
     errorCount(): Promise<number>;
+
+    setCancelFlag(): Promise<boolean>;
+    clearCancelFlag(): Promise<boolean>;
+
+    /** LibRaw version string from the native wrapper. */
+    version(): string;
+
+    /** LibRaw version tuple `[major, minor, patch]`. */
+    versionNumber(): number[];
 
     // ============== MEMORY STREAM OPERATIONS (NEW FEATURE) ==============
     /**
@@ -664,7 +720,12 @@ declare module 'libraw' {
      * Get count of supported camera models
      */
     static getCameraCount(): number;
+
+    static batchConvertToJPEGParallel(
+      inputPaths: string[],
+      outputDir: string,
+      options?: LibRawJPEGOptions,
+    ): Promise<Record<string, unknown>>;
   }
 
-  export = LibRaw;
-}
+export = LibRaw;

@@ -2,18 +2,49 @@
 #include <iostream>
 #include <sstream>
 #include <vector>
+#include <climits>
+#include <limits>
+#include <cstdio>
+#include <cstring>
+#if defined(_MSC_VER)
+#include <intrin.h>
+#endif
 
-Napi::FunctionReference LibRawWrapper::constructor;
+namespace {
+#if defined(_WIN32)
+std::wstring WideString(const Napi::Value& value) {
+    const std::u16string utf16 = value.As<Napi::String>().Utf16Value();
+    return std::wstring(utf16.begin(), utf16.end());
+}
+#endif
+
+bool CancellationRequested(volatile int32_t* flag) {
+    if (!flag) return false;
+#if defined(_MSC_VER)
+    return _InterlockedCompareExchange(
+        reinterpret_cast<volatile long*>(const_cast<int32_t*>(flag)), 0, 0) != 0;
+#else
+    return __atomic_load_n(flag, __ATOMIC_SEQ_CST) != 0;
+#endif
+}
+}
 
 Napi::Object LibRawWrapper::Init(Napi::Env env, Napi::Object exports) {
     Napi::HandleScope scope(env);
 
     Napi::Function func = DefineClass(env, "LibRawWrapper", {
         // File Operations
+        InstanceMethod("openFile", &LibRawWrapper::OpenFile),
+        InstanceMethod("openBuffer", &LibRawWrapper::OpenBuffer),
+        InstanceMethod("openBayer", &LibRawWrapper::OpenBayer),
         InstanceMethod("loadFile", &LibRawWrapper::LoadFile),
         InstanceMethod("loadBuffer", &LibRawWrapper::LoadBuffer),
         InstanceMethod("loadBayerData", &LibRawWrapper::LoadBayerData),
         InstanceMethod("close", &LibRawWrapper::Close),
+        InstanceMethod("recycle", &LibRawWrapper::Recycle),
+        InstanceMethod("recycleDatastream", &LibRawWrapper::RecycleDatastream),
+        InstanceMethod("drainEvents", &LibRawWrapper::DrainEvents),
+        InstanceMethod("setCancellationBuffer", &LibRawWrapper::SetCancellationBuffer),
         
         // Error Handling
         InstanceMethod("getLastError", &LibRawWrapper::GetLastError),
@@ -25,13 +56,19 @@ Napi::Object LibRawWrapper::Init(Napi::Env env, Napi::Object exports) {
         InstanceMethod("getAdvancedMetadata", &LibRawWrapper::GetAdvancedMetadata),
         InstanceMethod("getLensInfo", &LibRawWrapper::GetLensInfo),
         InstanceMethod("getColorInfo", &LibRawWrapper::GetColorInfo),
+        InstanceMethod("getRawImageBuffer", &LibRawWrapper::GetRawImageBuffer),
         
         // Image Processing
         InstanceMethod("unpackThumbnail", &LibRawWrapper::UnpackThumbnail),
+        InstanceMethod("unpackThumbEx", &LibRawWrapper::UnpackThumbnailEx),
         InstanceMethod("processImage", &LibRawWrapper::ProcessImage),
         InstanceMethod("subtractBlack", &LibRawWrapper::SubtractBlack),
+        InstanceMethod("subtractBlackInternal", &LibRawWrapper::SubtractBlackInternal),
         InstanceMethod("raw2Image", &LibRawWrapper::Raw2Image),
+        InstanceMethod("raw2ImageStart", &LibRawWrapper::Raw2ImageStart),
         InstanceMethod("adjustMaximum", &LibRawWrapper::AdjustMaximum),
+        InstanceMethod("adjustToRawInsetCrop", &LibRawWrapper::AdjustToRawInsetCrop),
+        InstanceMethod("setMakeFromIndex", &LibRawWrapper::SetMakeFromIndex),
         
         // Memory Image Creation
         InstanceMethod("createMemoryImage", &LibRawWrapper::CreateMemoryImage),
@@ -75,6 +112,13 @@ Napi::Object LibRawWrapper::Init(Napi::Env env, Napi::Object exports) {
         
         // Color Operations
         InstanceMethod("getColorAt", &LibRawWrapper::GetColorAt),
+        InstanceMethod("filterColorAt", &LibRawWrapper::GetFilterColorAt),
+        InstanceMethod("fcol", &LibRawWrapper::GetFcol),
+
+        InstanceMethod("phaseOneSubtractBlack", &LibRawWrapper::PhaseOneSubtractBlack),
+        InstanceMethod("phaseOneCorrect", &LibRawWrapper::PhaseOneCorrect),
+        InstanceMethod("setRawSpeedCameraFile", &LibRawWrapper::SetRawSpeedCameraFile),
+        InstanceMethod("adobeCoeff", &LibRawWrapper::AdobeCoeff),
         
         // Cancellation Support
         InstanceMethod("setCancelFlag", &LibRawWrapper::SetCancelFlag),
@@ -88,11 +132,11 @@ Napi::Object LibRawWrapper::Init(Napi::Env env, Napi::Object exports) {
         StaticMethod("getVersion", &LibRawWrapper::GetVersion),
         StaticMethod("getCapabilities", &LibRawWrapper::GetCapabilities),
         StaticMethod("getCameraList", &LibRawWrapper::GetCameraList),
-        StaticMethod("getCameraCount", &LibRawWrapper::GetCameraCount)
+        StaticMethod("getCameraCount", &LibRawWrapper::GetCameraCount),
+        StaticMethod("cameraMakerIndexToMaker", &LibRawWrapper::CameraMakerIndexToMaker),
+        StaticMethod("simplifyMakeModel", &LibRawWrapper::SimplifyMakeModel),
+        StaticMethod("strProgress", &LibRawWrapper::StrProgress)
     });
-
-    constructor = Napi::Persistent(func);
-    constructor.SuppressDestruct();
 
     exports.Set("LibRawWrapper", func);
     return exports;
@@ -104,12 +148,93 @@ LibRawWrapper::LibRawWrapper(const Napi::CallbackInfo& info)
     Napi::HandleScope scope(env);
 
     try {
-        processor = std::make_unique<LibRaw>();
+        unsigned int flags = 0;
+        if (info.Length() > 0 && info[0].IsNumber()) {
+            flags = info[0].As<Napi::Number>().Uint32Value();
+        }
+        processor = std::make_unique<LibRaw>(flags);
+        processor->set_progress_handler(&LibRawWrapper::ProgressCallback, this);
+        processor->set_dataerror_handler(&LibRawWrapper::DataErrorCallback, this);
+        processor->set_exifparser_handler(&LibRawWrapper::ExifTagCallback, this);
+        processor->set_makernotes_handler(&LibRawWrapper::MakerNoteCallback, this);
     } catch (const std::exception& e) {
         std::string errorMsg = "Failed to initialize LibRaw: ";
         errorMsg += e.what();
         Napi::TypeError::New(env, errorMsg).ThrowAsJavaScriptException();
     }
+}
+
+void LibRawWrapper::PushEvent(NativeEvent event) {
+    std::lock_guard<std::mutex> lock(eventMutex);
+    events.push_back(std::move(event));
+}
+
+int LibRawWrapper::ProgressCallback(void* context, enum LibRaw_progress stage, int iteration, int expected) {
+    auto* self = static_cast<LibRawWrapper*>(context);
+    self->PushEvent({NativeEventType::Progress, stage, iteration, expected, 0, ""});
+    return CancellationRequested(self->cancellationFlag) ? 1 : 0;
+}
+
+void LibRawWrapper::DataErrorCallback(void* context, const char* file, const INT64 offset) {
+    auto* self = static_cast<LibRawWrapper*>(context);
+    self->PushEvent({NativeEventType::DataError, offset, 0, 0, 0, file ? file : ""});
+}
+
+void LibRawWrapper::ExifTagCallback(void* context, int tag, int type, int len, unsigned int order, void*, INT64) {
+    auto* self = static_cast<LibRawWrapper*>(context);
+    self->PushEvent({NativeEventType::ExifTag, tag, type, len, order, ""});
+}
+
+void LibRawWrapper::MakerNoteCallback(void* context, int tag, int type, int len, unsigned int order, void*, INT64) {
+    auto* self = static_cast<LibRawWrapper*>(context);
+    self->PushEvent({NativeEventType::MakerNote, tag, type, len, order, ""});
+}
+
+Napi::Value LibRawWrapper::DrainEvents(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    std::vector<NativeEvent> drained;
+    {
+        std::lock_guard<std::mutex> lock(eventMutex);
+        drained.swap(events);
+    }
+    Napi::Array result = Napi::Array::New(env, drained.size());
+    for (size_t index = 0; index < drained.size(); ++index) {
+        const NativeEvent& event = drained[index];
+        Napi::Object value = Napi::Object::New(env);
+        if (event.type == NativeEventType::Progress) {
+            value.Set("name", "progress");
+            value.Set("stage", Napi::Number::New(env, event.a));
+            value.Set("iteration", Napi::Number::New(env, event.b));
+            value.Set("expected", Napi::Number::New(env, event.c));
+        } else if (event.type == NativeEventType::DataError) {
+            value.Set("name", "dataError");
+            value.Set("offset", Napi::Number::New(env, static_cast<double>(event.a)));
+            value.Set("file", event.message);
+        } else {
+            value.Set("name", event.type == NativeEventType::ExifTag ? "exifTag" : "makerNote");
+            value.Set("tag", Napi::Number::New(env, event.a));
+            value.Set("type", Napi::Number::New(env, event.b));
+            value.Set("length", Napi::Number::New(env, event.c));
+            value.Set("order", Napi::Number::New(env, event.d));
+        }
+        result.Set(index, value);
+    }
+    return result;
+}
+
+Napi::Value LibRawWrapper::SetCancellationBuffer(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsTypedArray()) {
+        Napi::TypeError::New(env, "Expected Int32Array cancellation buffer").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    Napi::TypedArray array = info[0].As<Napi::TypedArray>();
+    if (array.TypedArrayType() != napi_int32_array || array.ElementLength() < 1) {
+        Napi::TypeError::New(env, "Expected non-empty Int32Array cancellation buffer").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    cancellationFlag = info[0].As<Napi::Int32Array>().Data();
+    return env.Undefined();
 }
 
 LibRawWrapper::~LibRawWrapper() {
@@ -128,6 +253,93 @@ bool LibRawWrapper::CheckLoaded(Napi::Env env) {
 
 // ============== FILE OPERATIONS ==============
 
+Napi::Value LibRawWrapper::OpenFile(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected string filename").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+#if defined(_WIN32)
+    const std::wstring filename = WideString(info[0]);
+    int ret = processor->open_file(filename.c_str());
+#else
+    const std::string filename = info[0].As<Napi::String>().Utf8Value();
+    int ret = processor->open_file(filename.c_str());
+#endif
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    isLoaded = true;
+    isUnpacked = false;
+    isProcessed = false;
+    return Napi::Boolean::New(env, true);
+}
+
+Napi::Value LibRawWrapper::OpenBuffer(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsBuffer()) {
+        Napi::TypeError::New(env, "Expected Buffer").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Buffer<uint8_t> input = info[0].As<Napi::Buffer<uint8_t>>();
+    int ret = processor->open_buffer(input.Data(), input.Length());
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    isLoaded = true;
+    isUnpacked = false;
+    isProcessed = false;
+    return Napi::Boolean::New(env, true);
+}
+
+Napi::Value LibRawWrapper::OpenBayer(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsBuffer() || !info[1].IsObject()) {
+        Napi::TypeError::New(env, "Expected Buffer and Bayer descriptor").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    Napi::Buffer<uint8_t> input = info[0].As<Napi::Buffer<uint8_t>>();
+    Napi::Object descriptor = info[1].As<Napi::Object>();
+    auto uintValue = [&](const char* name, unsigned int fallback) {
+        return descriptor.Has(name) && descriptor.Get(name).IsNumber()
+            ? descriptor.Get(name).As<Napi::Number>().Uint32Value()
+            : fallback;
+    };
+    unsigned int width = uintValue("width", 0);
+    unsigned int height = uintValue("height", 0);
+    if (!width || !height) {
+        Napi::RangeError::New(env, "Bayer width and height must be positive").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+
+    int ret = processor->open_bayer(
+        input.Data(), input.Length(), width, height,
+        uintValue("leftMargin", 0), uintValue("topMargin", 0),
+        uintValue("rightMargin", 0), uintValue("bottomMargin", 0),
+        uintValue("procFlags", 0), uintValue("bayerPattern", LIBRAW_OPENBAYER_BGGR),
+        uintValue("unusedBits", 0), uintValue("otherFlags", 0),
+        uintValue("blackLevel", 0));
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    isLoaded = true;
+    isUnpacked = false;
+    isProcessed = false;
+    return Napi::Boolean::New(env, true);
+}
+
 Napi::Value LibRawWrapper::LoadFile(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
@@ -136,10 +348,14 @@ Napi::Value LibRawWrapper::LoadFile(const Napi::CallbackInfo& info) {
         return env.Null();
     }
 
-    std::string filename = info[0].As<Napi::String>().Utf8Value();
-
     try {
+#if defined(_WIN32)
+        const std::wstring filename = WideString(info[0]);
         int ret = processor->open_file(filename.c_str());
+#else
+        const std::string filename = info[0].As<Napi::String>().Utf8Value();
+        int ret = processor->open_file(filename.c_str());
+#endif
         if (ret != LIBRAW_SUCCESS) {
             std::string error = "Failed to open file: ";
             error += libraw_strerror(ret);
@@ -178,7 +394,6 @@ Napi::Value LibRawWrapper::LoadBayerData(const Napi::CallbackInfo& info) {
         return env.Null();   
     }
 
-    std::string filename = info[0].As<Napi::String>().Utf8Value();
     Napi::Object fileProperty = info[1].As<Napi::Object>();
 
     if (!fileProperty.Has("width") || !fileProperty.Get("width").IsNumber()) {
@@ -191,22 +406,33 @@ Napi::Value LibRawWrapper::LoadBayerData(const Napi::CallbackInfo& info) {
         return env.Null(); 
     }
 
-    FILE *in = fopen(filename.c_str(), "rb");
-    fseek(in, 0, SEEK_END);
-    unsigned fsz = ftell(in);
-    fseek(in, 0, SEEK_SET);
-
-    unsigned char *buffer = (unsigned char *)malloc(fsz);
-    if (!buffer) {
-        fclose(in);
-        Napi::Error::New(env, "Memory allocation failed").ThrowAsJavaScriptException();
+#if defined(_WIN32)
+    const std::wstring filename = WideString(info[0]);
+    std::unique_ptr<FILE, int(*)(FILE*)> in(_wfopen(filename.c_str(), L"rb"), fclose);
+#else
+    const std::string filename = info[0].As<Napi::String>().Utf8Value();
+    std::unique_ptr<FILE, int(*)(FILE*)> in(fopen(filename.c_str(), "rb"), fclose);
+#endif
+    if (!in) {
+        Napi::Error::New(env, "Failed to open Bayer file").ThrowAsJavaScriptException();
         return env.Null();
     }
+    if (fseek(in.get(), 0, SEEK_END) != 0) {
+        Napi::Error::New(env, "Failed to seek Bayer file").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    const long fileSize = ftell(in.get());
+    if (fileSize <= 0 || static_cast<unsigned long>(fileSize) > UINT_MAX ||
+        fseek(in.get(), 0, SEEK_SET) != 0) {
+        Napi::Error::New(env, "Invalid Bayer file size").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    const unsigned fsz = static_cast<unsigned>(fileSize);
 
-    unsigned bytesRead = fread(buffer, 1, fsz, in);
-    fclose(in);
+    std::vector<unsigned char> buffer(fsz);
+    const size_t bytesRead = fread(buffer.data(), 1, fsz, in.get());
+    in.reset();
     if (bytesRead != fsz) {
-        free(buffer);
         Napi::Error::New(env, "Failed to read file").ThrowAsJavaScriptException();
         return env.Null();
     }
@@ -215,7 +441,7 @@ Napi::Value LibRawWrapper::LoadBayerData(const Napi::CallbackInfo& info) {
 
     try {
         int ret = processor->open_bayer(
-            buffer, 
+            buffer.data(),
             fsz, 
             fileProperty.Get("width").As<Napi::Number>().Uint32Value(), 
             fileProperty.Get("height").As<Napi::Number>().Uint32Value(), 
@@ -223,7 +449,6 @@ Napi::Value LibRawWrapper::LoadBayerData(const Napi::CallbackInfo& info) {
             LIBRAW_OPENBAYER_BGGR, 0, 0, 0);
 
         if (ret != LIBRAW_SUCCESS) {
-            free(buffer);
             std::string error = "Failed to open file: ";
             error += libraw_strerror(ret);
             Napi::Error::New(env, error).ThrowAsJavaScriptException();
@@ -232,14 +457,11 @@ Napi::Value LibRawWrapper::LoadBayerData(const Napi::CallbackInfo& info) {
 
         ret = processor->unpack();
         if (ret != LIBRAW_SUCCESS) {
-            free(buffer);
             std::string error = "Failed to unpack file: ";
             error += libraw_strerror(ret);
             Napi::Error::New(env, error).ThrowAsJavaScriptException();
             return env.Null();
         }
-
-        free(buffer);
 
         isLoaded = true;
         isUnpacked = true;
@@ -299,6 +521,15 @@ Napi::Value LibRawWrapper::Close(const Napi::CallbackInfo& info) {
     }
 
     return Napi::Boolean::New(env, true);
+}
+
+Napi::Value LibRawWrapper::Recycle(const Napi::CallbackInfo& info) {
+    return Close(info);
+}
+
+Napi::Value LibRawWrapper::RecycleDatastream(const Napi::CallbackInfo& info) {
+    processor->recycle_datastream();
+    return info.Env().Undefined();
 }
 
 // ============== METADATA & INFORMATION ==============
@@ -524,6 +755,42 @@ Napi::Value LibRawWrapper::GetColorInfo(const Napi::CallbackInfo& info) {
 
 // ============== IMAGE PROCESSING ==============
 
+Napi::Value LibRawWrapper::GetRawImageBuffer(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+
+    const size_t pixels = static_cast<size_t>(processor->imgdata.rawdata.sizes.raw_width) *
+                          processor->imgdata.rawdata.sizes.raw_height;
+    if (processor->imgdata.rawdata.raw_image) {
+        return Napi::Buffer<uint8_t>::Copy(
+            env,
+            reinterpret_cast<uint8_t*>(processor->imgdata.rawdata.raw_image),
+            pixels * sizeof(ushort));
+    }
+    if (processor->imgdata.rawdata.color4_image) {
+        return Napi::Buffer<uint8_t>::Copy(
+            env,
+            reinterpret_cast<uint8_t*>(processor->imgdata.rawdata.color4_image),
+            pixels * 4 * sizeof(ushort));
+    }
+    if (processor->imgdata.rawdata.color3_image) {
+        return Napi::Buffer<uint8_t>::Copy(
+            env,
+            reinterpret_cast<uint8_t*>(processor->imgdata.rawdata.color3_image),
+            pixels * 3 * sizeof(ushort));
+    }
+    if (processor->imgdata.image) {
+        const size_t imagePixels = static_cast<size_t>(processor->imgdata.sizes.iwidth) *
+                                   processor->imgdata.sizes.iheight;
+        return Napi::Buffer<uint8_t>::Copy(
+            env,
+            reinterpret_cast<uint8_t*>(processor->imgdata.image),
+            imagePixels * 4 * sizeof(ushort));
+    }
+    Napi::Error::New(env, "No decoded pixel buffer is available").ThrowAsJavaScriptException();
+    return env.Null();
+}
+
 Napi::Value LibRawWrapper::UnpackThumbnail(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     if (!CheckLoaded(env)) return env.Null();
@@ -542,6 +809,23 @@ Napi::Value LibRawWrapper::UnpackThumbnail(const Napi::CallbackInfo& info) {
         Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
         return env.Null();
     }
+}
+
+Napi::Value LibRawWrapper::UnpackThumbnailEx(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected thumbnail index").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    int ret = processor->unpack_thumb_ex(info[0].As<Napi::Number>().Int32Value());
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return env.Undefined();
 }
 
 Napi::Value LibRawWrapper::ProcessImage(const Napi::CallbackInfo& info) {
@@ -585,6 +869,19 @@ Napi::Value LibRawWrapper::SubtractBlack(const Napi::CallbackInfo& info) {
     }
 }
 
+Napi::Value LibRawWrapper::SubtractBlackInternal(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+    int ret = processor->subtract_black_internal();
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return env.Undefined();
+}
+
 Napi::Value LibRawWrapper::Raw2Image(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     if (!CheckLoaded(env)) return env.Null();
@@ -605,6 +902,13 @@ Napi::Value LibRawWrapper::Raw2Image(const Napi::CallbackInfo& info) {
     }
 }
 
+Napi::Value LibRawWrapper::Raw2ImageStart(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+    processor->raw2image_start();
+    return env.Undefined();
+}
+
 Napi::Value LibRawWrapper::AdjustMaximum(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     if (!CheckLoaded(env)) return env.Null();
@@ -623,6 +927,43 @@ Napi::Value LibRawWrapper::AdjustMaximum(const Napi::CallbackInfo& info) {
         Napi::Error::New(env, e.what()).ThrowAsJavaScriptException();
         return env.Null();
     }
+}
+
+Napi::Value LibRawWrapper::AdjustToRawInsetCrop(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected crop mask").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    unsigned int mask = info[0].As<Napi::Number>().Uint32Value();
+    float maxCrop = info.Length() > 1 && info[1].IsNumber()
+        ? info[1].As<Napi::Number>().FloatValue()
+        : 0.55f;
+    int ret = processor->adjust_to_raw_inset_crop(mask, maxCrop);
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return env.Undefined();
+}
+
+Napi::Value LibRawWrapper::SetMakeFromIndex(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected camera maker index").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    int ret = processor->setMakeFromIndex(info[0].As<Napi::Number>().Uint32Value());
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return env.Undefined();
 }
 
 // ============== MEMORY IMAGE CREATION ==============
@@ -667,8 +1008,9 @@ Napi::Value LibRawWrapper::CreateMemoryImage(const Napi::CallbackInfo& info) {
             return env.Null();
         }
 
-        Napi::Object result = CreateImageDataObject(env, img);
-        LibRaw::dcraw_clear_mem(img);
+        std::unique_ptr<libraw_processed_image_t, void (*)(libraw_processed_image_t*)>
+            ownedImage(img, &LibRaw::dcraw_clear_mem);
+        Napi::Object result = CreateImageDataObject(env, ownedImage.get());
         
         return result;
     } catch (const std::exception& e) {
@@ -696,8 +1038,9 @@ Napi::Value LibRawWrapper::CreateMemoryThumbnail(const Napi::CallbackInfo& info)
             return env.Null();
         }
 
-        Napi::Object result = CreateImageDataObject(env, img);
-        LibRaw::dcraw_clear_mem(img);
+        std::unique_ptr<libraw_processed_image_t, void (*)(libraw_processed_image_t*)>
+            ownedImage(img, &LibRaw::dcraw_clear_mem);
+        Napi::Object result = CreateImageDataObject(env, ownedImage.get());
         
         return result;
     } catch (const std::exception& e) {
@@ -796,7 +1139,6 @@ Napi::Value LibRawWrapper::WriteThumbnail(const Napi::CallbackInfo& info) {
 
 Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
-    if (!CheckLoaded(env)) return env.Null();
 
     if (info.Length() < 1 || !info[0].IsObject() || info[0].IsArray() || info[0].IsFunction()) {
         Napi::TypeError::New(env, "Expected object with output parameters").ThrowAsJavaScriptException();
@@ -806,52 +1148,99 @@ Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
     Napi::Object params = info[0].As<Napi::Object>();
 
     try {
-        // Gamma settings
+        auto setInt = [&](const char* name, int& field) {
+            if (params.Has(name) && params.Get(name).IsNumber())
+                field = params.Get(name).As<Napi::Number>().Int32Value();
+        };
+        auto setFloat = [&](const char* name, float& field) {
+            if (params.Has(name) && params.Get(name).IsNumber())
+                field = params.Get(name).As<Napi::Number>().FloatValue();
+        };
+        auto setBool = [&](const char* name, int& field) {
+            if (!params.Has(name)) return;
+            Napi::Value value = params.Get(name);
+            if (value.IsBoolean()) field = value.As<Napi::Boolean>().Value() ? 1 : 0;
+            else if (value.IsNumber()) field = value.As<Napi::Number>().Int32Value() ? 1 : 0;
+        };
+        auto setString = [&](const char* name, std::string& storage, char*& field) {
+            if (!params.Has(name)) return;
+            Napi::Value value = params.Get(name);
+            if (value.IsNull() || value.IsUndefined()) {
+                storage.clear();
+                field = nullptr;
+            } else if (value.IsString()) {
+                storage = value.As<Napi::String>().Utf8Value();
+                field = storage.empty() ? nullptr : storage.data();
+            }
+        };
+
+        // Validate range-constrained values before mutating any output field so
+        // a rejected update cannot leave a partially-applied configuration.
+        if (params.Has("output_bps")) {
+            if (!params.Get("output_bps").IsNumber()) {
+                Napi::TypeError::New(env, "output_bps must be 8 or 16").ThrowAsJavaScriptException();
+                return env.Null();
+            }
+            const int bits = params.Get("output_bps").As<Napi::Number>().Int32Value();
+            if (bits != 8 && bits != 16) {
+                Napi::RangeError::New(env, "output_bps must be 8 or 16").ThrowAsJavaScriptException();
+                return env.Null();
+            }
+        }
+
         if (params.Has("gamma") && params.Get("gamma").IsArray()) {
             Napi::Array gamma = params.Get("gamma").As<Napi::Array>();
-            if (gamma.Length() >= 2) {
-                processor->imgdata.params.gamm[0] = gamma.Get(0u).As<Napi::Number>().DoubleValue();
-                processor->imgdata.params.gamm[1] = gamma.Get(1u).As<Napi::Number>().DoubleValue();
-            }
+            for (uint32_t i = 0; i < 6 && i < gamma.Length(); ++i)
+                if (gamma.Get(i).IsNumber())
+                    processor->imgdata.params.gamm[i] = gamma.Get(i).As<Napi::Number>().DoubleValue();
         }
-
-        // Brightness
-        if (params.Has("bright") && params.Get("bright").IsNumber()) {
-            processor->imgdata.params.bright = params.Get("bright").As<Napi::Number>().FloatValue();
+        if (params.Has("greybox") && params.Get("greybox").IsArray()) {
+            Napi::Array values = params.Get("greybox").As<Napi::Array>();
+            for (uint32_t i = 0; i < 4 && i < values.Length(); ++i)
+                if (values.Get(i).IsNumber()) processor->imgdata.params.greybox[i] = values.Get(i).As<Napi::Number>().Uint32Value();
         }
-
-        // Output color space
-        if (params.Has("output_color") && params.Get("output_color").IsNumber()) {
-            processor->imgdata.params.output_color = params.Get("output_color").As<Napi::Number>().Int32Value();
+        if (params.Has("cropbox") && params.Get("cropbox").IsArray()) {
+            Napi::Array values = params.Get("cropbox").As<Napi::Array>();
+            for (uint32_t i = 0; i < 4 && i < values.Length(); ++i)
+                if (values.Get(i).IsNumber()) processor->imgdata.params.cropbox[i] = values.Get(i).As<Napi::Number>().Uint32Value();
         }
-
-        // Output bits per sample
-        if (params.Has("output_bps") && params.Get("output_bps").IsNumber()) {
-            processor->imgdata.params.output_bps = params.Get("output_bps").As<Napi::Number>().Int32Value();
+        if (params.Has("aber") && params.Get("aber").IsArray()) {
+            Napi::Array values = params.Get("aber").As<Napi::Array>();
+            for (uint32_t i = 0; i < 4 && i < values.Length(); ++i)
+                if (values.Get(i).IsNumber()) processor->imgdata.params.aber[i] = values.Get(i).As<Napi::Number>().DoubleValue();
         }
-
-        // User multipliers
         if (params.Has("user_mul") && params.Get("user_mul").IsArray()) {
             Napi::Array userMul = params.Get("user_mul").As<Napi::Array>();
-            for (uint32_t i = 0; i < 4 && i < userMul.Length(); i++) {
-                processor->imgdata.params.user_mul[i] = userMul.Get(i).As<Napi::Number>().FloatValue();
-            }
+            for (uint32_t i = 0; i < 4 && i < userMul.Length(); ++i)
+                if (userMul.Get(i).IsNumber()) processor->imgdata.params.user_mul[i] = userMul.Get(i).As<Napi::Number>().FloatValue();
+        }
+        if (params.Has("user_cblack") && params.Get("user_cblack").IsArray()) {
+            Napi::Array values = params.Get("user_cblack").As<Napi::Array>();
+            for (uint32_t i = 0; i < 4 && i < values.Length(); ++i)
+                if (values.Get(i).IsNumber()) processor->imgdata.params.user_cblack[i] = values.Get(i).As<Napi::Number>().Int32Value();
         }
 
-        // Auto bright
-        if (params.Has("no_auto_bright") && params.Get("no_auto_bright").IsBoolean()) {
-            processor->imgdata.params.no_auto_bright = params.Get("no_auto_bright").As<Napi::Boolean>().Value() ? 1 : 0;
-        }
-
-        // Highlight mode
-        if (params.Has("highlight") && params.Get("highlight").IsNumber()) {
-            processor->imgdata.params.highlight = params.Get("highlight").As<Napi::Number>().Int32Value();
-        }
-
-        // Output TIFF
-        if (params.Has("output_tiff") && params.Get("output_tiff").IsBoolean()) {
-            processor->imgdata.params.output_tiff = params.Get("output_tiff").As<Napi::Boolean>().Value() ? 1 : 0;
-        }
+        auto& output = processor->imgdata.params;
+        setFloat("bright", output.bright); setFloat("threshold", output.threshold);
+        setBool("half_size", output.half_size); setBool("four_color_rgb", output.four_color_rgb);
+        setInt("highlight", output.highlight); setBool("use_auto_wb", output.use_auto_wb);
+        setBool("use_camera_wb", output.use_camera_wb); setInt("use_camera_matrix", output.use_camera_matrix);
+        setInt("output_color", output.output_color); setInt("output_bps", output.output_bps);
+        setBool("output_tiff", output.output_tiff); setInt("output_flags", output.output_flags);
+        setInt("user_flip", output.user_flip); setInt("user_qual", output.user_qual);
+        setInt("user_black", output.user_black); setInt("user_sat", output.user_sat);
+        setInt("med_passes", output.med_passes); setFloat("auto_bright_thr", output.auto_bright_thr);
+        setFloat("adjust_maximum_thr", output.adjust_maximum_thr); setBool("no_auto_bright", output.no_auto_bright);
+        setBool("use_fuji_rotate", output.use_fuji_rotate); setBool("use_p1_correction", output.use_p1_correction);
+        setBool("green_matching", output.green_matching); setInt("dcb_iterations", output.dcb_iterations);
+        setBool("dcb_enhance_fl", output.dcb_enhance_fl); setInt("fbdd_noiserd", output.fbdd_noiserd);
+        setBool("exp_correc", output.exp_correc); setFloat("exp_shift", output.exp_shift);
+        setFloat("exp_preser", output.exp_preser); setBool("no_auto_scale", output.no_auto_scale);
+        setBool("no_interpolation", output.no_interpolation);
+        setString("output_profile", outputProfile, output.output_profile);
+        setString("camera_profile", cameraProfile, output.camera_profile);
+        setString("bad_pixels", badPixels, output.bad_pixels);
+        setString("dark_frame", darkFrame, output.dark_frame);
 
         return Napi::Boolean::New(env, true);
     } catch (const std::exception& e) {
@@ -862,31 +1251,46 @@ Napi::Value LibRawWrapper::SetOutputParams(const Napi::CallbackInfo& info) {
 
 Napi::Value LibRawWrapper::GetOutputParams(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
-    if (!CheckLoaded(env)) return env.Null();
 
     Napi::Object params = Napi::Object::New(env);
 
     try {
-        // Gamma
+        auto& output = processor->imgdata.params;
+        auto setNumber = [&](const char* name, double value) { params.Set(name, Napi::Number::New(env, value)); };
+        auto setBoolean = [&](const char* name, int value) { params.Set(name, Napi::Boolean::New(env, value != 0)); };
+        auto setString = [&](const char* name, const char* value) {
+            params.Set(name, value ? Napi::Value(Napi::String::New(env, value)) : Napi::Value(env.Null()));
+        };
+        auto numericArray = [&](const char* name, const auto* values, uint32_t count) {
+            Napi::Array result = Napi::Array::New(env, count);
+            for (uint32_t i = 0; i < count; ++i) result.Set(i, Napi::Number::New(env, values[i]));
+            params.Set(name, result);
+        };
+
         Napi::Array gamma = Napi::Array::New(env);
-        gamma.Set(0u, Napi::Number::New(env, processor->imgdata.params.gamm[0]));
-        gamma.Set(1u, Napi::Number::New(env, processor->imgdata.params.gamm[1]));
+        for (uint32_t i = 0; i < 6; ++i) gamma.Set(i, Napi::Number::New(env, output.gamm[i]));
         params.Set("gamma", gamma);
-
-        // Other parameters
-        params.Set("bright", Napi::Number::New(env, processor->imgdata.params.bright));
-        params.Set("output_color", Napi::Number::New(env, processor->imgdata.params.output_color));
-        params.Set("output_bps", Napi::Number::New(env, processor->imgdata.params.output_bps));
-        params.Set("no_auto_bright", Napi::Boolean::New(env, processor->imgdata.params.no_auto_bright));
-        params.Set("highlight", Napi::Number::New(env, processor->imgdata.params.highlight));
-        params.Set("output_tiff", Napi::Boolean::New(env, processor->imgdata.params.output_tiff));
-
-        // User multipliers
-        Napi::Array userMul = Napi::Array::New(env);
-        for (int i = 0; i < 4; i++) {
-            userMul.Set(i, Napi::Number::New(env, processor->imgdata.params.user_mul[i]));
-        }
-        params.Set("user_mul", userMul);
+        numericArray("greybox", output.greybox, 4); numericArray("cropbox", output.cropbox, 4);
+        numericArray("aber", output.aber, 4); numericArray("user_mul", output.user_mul, 4);
+        numericArray("user_cblack", output.user_cblack, 4);
+        setNumber("bright", output.bright); setNumber("threshold", output.threshold);
+        setBoolean("half_size", output.half_size); setBoolean("four_color_rgb", output.four_color_rgb);
+        setNumber("highlight", output.highlight); setBoolean("use_auto_wb", output.use_auto_wb);
+        setBoolean("use_camera_wb", output.use_camera_wb); setNumber("use_camera_matrix", output.use_camera_matrix);
+        setNumber("output_color", output.output_color); setNumber("output_bps", output.output_bps);
+        setBoolean("output_tiff", output.output_tiff); setNumber("output_flags", output.output_flags);
+        setNumber("user_flip", output.user_flip); setNumber("user_qual", output.user_qual);
+        setNumber("user_black", output.user_black); setNumber("user_sat", output.user_sat);
+        setNumber("med_passes", output.med_passes); setNumber("auto_bright_thr", output.auto_bright_thr);
+        setNumber("adjust_maximum_thr", output.adjust_maximum_thr); setBoolean("no_auto_bright", output.no_auto_bright);
+        setBoolean("use_fuji_rotate", output.use_fuji_rotate); setBoolean("use_p1_correction", output.use_p1_correction);
+        setBoolean("green_matching", output.green_matching); setNumber("dcb_iterations", output.dcb_iterations);
+        setBoolean("dcb_enhance_fl", output.dcb_enhance_fl); setNumber("fbdd_noiserd", output.fbdd_noiserd);
+        setBoolean("exp_correc", output.exp_correc); setNumber("exp_shift", output.exp_shift);
+        setNumber("exp_preser", output.exp_preser); setBoolean("no_auto_scale", output.no_auto_scale);
+        setBoolean("no_interpolation", output.no_interpolation);
+        setString("output_profile", output.output_profile); setString("camera_profile", output.camera_profile);
+        setString("bad_pixels", output.bad_pixels); setString("dark_frame", output.dark_frame);
 
         return params;
     } catch (const std::exception& e) {
@@ -975,6 +1379,48 @@ Napi::Value LibRawWrapper::GetCameraCount(const Napi::CallbackInfo& info) {
 
     int count = LibRaw::cameraCount();
     return Napi::Number::New(env, count);
+}
+
+Napi::Value LibRawWrapper::CameraMakerIndexToMaker(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected camera maker index").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    const char* maker = LibRaw::cameramakeridx2maker(info[0].As<Napi::Number>().Uint32Value());
+    return maker ? Napi::String::New(env, maker) : env.Null();
+}
+
+Napi::Value LibRawWrapper::SimplifyMakeModel(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 3 || !info[0].IsNumber() || !info[1].IsString() || !info[2].IsString()) {
+        Napi::TypeError::New(env, "Expected maker index, make, and model").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    unsigned int makerIndex = info[0].As<Napi::Number>().Uint32Value();
+    std::string inputMake = info[1].As<Napi::String>().Utf8Value();
+    std::string inputModel = info[2].As<Napi::String>().Utf8Value();
+    std::vector<char> make(256, 0);
+    std::vector<char> model(256, 0);
+    std::snprintf(make.data(), make.size(), "%s", inputMake.c_str());
+    std::snprintf(model.data(), model.size(), "%s", inputModel.c_str());
+    int ret = LibRaw::simplify_make_model(&makerIndex, make.data(), make.size(), model.data(), model.size());
+    Napi::Object result = Napi::Object::New(env);
+    result.Set("result", ret);
+    result.Set("makerIndex", makerIndex);
+    result.Set("make", make.data());
+    result.Set("model", model.data());
+    return result;
+}
+
+Napi::Value LibRawWrapper::StrProgress(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsNumber()) {
+        Napi::TypeError::New(env, "Expected progress code").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    const char* value = LibRaw::strprogress(static_cast<LibRaw_progress>(info[0].As<Napi::Number>().Int32Value()));
+    return Napi::String::New(env, value ? value : "Unknown progress");
 }
 
 // ============== EXTENDED UTILITY FUNCTIONS ==============
@@ -1204,6 +1650,31 @@ Napi::Value LibRawWrapper::CopyMemImage(const Napi::CallbackInfo& info) {
         Napi::Buffer<uint8_t> buffer = info[0].As<Napi::Buffer<uint8_t>>();
         int stride = info[1].As<Napi::Number>().Int32Value();
         int bgr = info[2].As<Napi::Boolean>().Value() ? 1 : 0;
+
+        int width = 0, height = 0, colors = 0, bitsPerSample = 0;
+        processor->get_mem_image_format(&width, &height, &colors, &bitsPerSample);
+        if (width <= 0 || height <= 0 || colors <= 0 ||
+            (bitsPerSample != 8 && bitsPerSample != 16)) {
+            Napi::Error::New(env, "Invalid processed image format").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        const size_t bytesPerSample = static_cast<size_t>(bitsPerSample / 8);
+        const size_t rowBytes = static_cast<size_t>(width) * static_cast<size_t>(colors) * bytesPerSample;
+        if (stride < 0 || static_cast<size_t>(stride) < rowBytes) {
+            Napi::RangeError::New(env, "Stride is smaller than one processed image row").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        const size_t rowStride = static_cast<size_t>(stride);
+        if (static_cast<size_t>(height - 1) >
+            (std::numeric_limits<size_t>::max() - rowBytes) / rowStride) {
+            Napi::RangeError::New(env, "Processed image buffer size overflow").ThrowAsJavaScriptException();
+            return env.Null();
+        }
+        const size_t required = static_cast<size_t>(height - 1) * rowStride + rowBytes;
+        if (buffer.Length() < required) {
+            Napi::RangeError::New(env, "Destination Buffer is too small for the processed image").ThrowAsJavaScriptException();
+            return env.Null();
+        }
         
         int ret = processor->copy_mem_image(buffer.Data(), stride, bgr);
         if (ret != LIBRAW_SUCCESS) {
@@ -1243,6 +1714,118 @@ Napi::Value LibRawWrapper::GetColorAt(const Napi::CallbackInfo& info) {
     }
 }
 
+Napi::Value LibRawWrapper::GetFilterColorAt(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
+        Napi::TypeError::New(env, "Expected (row, col)").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return Napi::Number::New(env, processor->FC(
+        info[0].As<Napi::Number>().Int32Value(),
+        info[1].As<Napi::Number>().Int32Value()));
+}
+
+Napi::Value LibRawWrapper::GetFcol(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsNumber()) {
+        Napi::TypeError::New(env, "Expected (row, col)").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return Napi::Number::New(env, processor->fcol(
+        info[0].As<Napi::Number>().Int32Value(),
+        info[1].As<Napi::Number>().Int32Value()));
+}
+
+Napi::Value LibRawWrapper::PhaseOneSubtractBlack(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+    if (info.Length() < 1 || !info[0].IsBuffer()) {
+        Napi::TypeError::New(env, "Expected 16-bit source Buffer").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    Napi::Buffer<uint8_t> source = info[0].As<Napi::Buffer<uint8_t>>();
+    if (source.Length() % sizeof(ushort) != 0) {
+        Napi::RangeError::New(env, "Source Buffer length must be divisible by two").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    const size_t rawWidth = processor->imgdata.rawdata.sizes.raw_width;
+    const size_t rawHeight = processor->imgdata.rawdata.sizes.raw_height;
+    if (!rawWidth || !rawHeight || rawWidth > std::numeric_limits<size_t>::max() / rawHeight) {
+        Napi::Error::New(env, "Invalid Phase One RAW dimensions").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    const size_t count = rawWidth * rawHeight;
+    if (count > std::numeric_limits<size_t>::max() / sizeof(ushort) ||
+        source.Length() < count * sizeof(ushort)) {
+        Napi::RangeError::New(env, "Source Buffer is too small for the Phase One RAW frame").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    std::vector<ushort> alignedSource(count);
+    std::vector<ushort> destination(count);
+    const size_t byteLength = count * sizeof(ushort);
+    std::memcpy(alignedSource.data(), source.Data(), byteLength);
+    int ret = processor->phase_one_subtract_black(alignedSource.data(), destination.data());
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return Napi::Buffer<uint8_t>::Copy(
+        env, reinterpret_cast<uint8_t*>(destination.data()), byteLength);
+}
+
+Napi::Value LibRawWrapper::PhaseOneCorrect(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (!CheckLoaded(env)) return env.Null();
+    int ret = processor->phase_one_correct();
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return env.Undefined();
+}
+
+Napi::Value LibRawWrapper::SetRawSpeedCameraFile(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 1 || !info[0].IsString()) {
+        Napi::TypeError::New(env, "Expected camera file path").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    std::string filename = info[0].As<Napi::String>().Utf8Value();
+    int ret = processor->set_rawspeed_camerafile(filename.data());
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return env.Undefined();
+}
+
+Napi::Value LibRawWrapper::AdobeCoeff(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    if (info.Length() < 2 || !info[0].IsNumber() || !info[1].IsString()) {
+        Napi::TypeError::New(env, "Expected maker index and model").ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    unsigned int maker = info[0].As<Napi::Number>().Uint32Value();
+    std::string model = info[1].As<Napi::String>().Utf8Value();
+    int internalOnly = info.Length() > 2 && info[2].ToBoolean().Value() ? 1 : 0;
+    int ret = processor->adobe_coeff(maker, model.c_str(), internalOnly);
+    if (ret != LIBRAW_SUCCESS) {
+        Napi::Error error = Napi::Error::New(env, libraw_strerror(ret));
+        error.Set("librawCode", Napi::Number::New(env, ret));
+        error.ThrowAsJavaScriptException();
+        return env.Null();
+    }
+    return env.Undefined();
+}
+
 // ============== CANCELLATION SUPPORT ==============
 
 Napi::Value LibRawWrapper::SetCancelFlag(const Napi::CallbackInfo& info) {
@@ -1273,10 +1856,9 @@ Napi::Value LibRawWrapper::VersionNumber(const Napi::CallbackInfo& info) {
     
     int versionNum = processor->versionNumber();
     
-    // LibRaw version number is encoded as XXYYZZ where XX.YY.ZZ is the version
-    int major = versionNum / 10000;
-    int minor = (versionNum % 10000) / 100;
-    int patch = versionNum % 100;
+    int major = (versionNum >> 16) & 0xff;
+    int minor = (versionNum >> 8) & 0xff;
+    int patch = versionNum & 0xff;
     
     Napi::Array result = Napi::Array::New(env, 3);
     result[static_cast<uint32_t>(0)] = Napi::Number::New(env, major);

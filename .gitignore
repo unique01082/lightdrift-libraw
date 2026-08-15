@@ -80,6 +80,7 @@ Thumbs.db
 # Build artifacts
 build/
 dist/
+prebuilds/
 
 # LibRaw archives (keep source in deps/)
 *.zip

@@ -1,37 +1,39 @@
 {
   "name": "lightdrift-libraw",
-  "version": "1.0.0-beta.1",
-  "description": "Node.js Native Addon for LibRaw - Process RAW image files with JavaScript. Worker thread compatible for parallel processing.",
-  "main": "lib/index.js",
-  "types": "lib/index.d.ts",
+  "version": "1.0.0-rc.1",
+  "description": "Stable Node.js SDK for decoding RAW images with vendored LibRaw and Sharp.",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    },
+    "./legacy": {
+      "types": {
+        "import": "./lib/legacy.d.mts",
+        "require": "./lib/index.d.ts"
+      },
+      "import": "./dist/legacy.mjs",
+      "require": "./lib/legacy.cjs"
+    },
+    "./package.json": "./package.json"
+  },
   "scripts": {
-    "build": "node-gyp rebuild",
+    "build": "pnpm run build:native && pnpm run build:js",
+    "build:native": "node-gyp rebuild",
+    "build:js": "tsup",
     "rebuild": "npm run clean && npm run build",
-    "test": "node test/index.js",
-    "test:all": "node test/index.js full",
-    "test:quick": "node test/index.js quick",
-    "test:smoke": "node test/index.js smoke",
-    "test:static": "node test/index.js static",
-    "test:errors": "node test/index.js errors",
-    "test:buffers": "node test/index.js buffers",
-    "test:buffer-creation": "node test/run-buffer-tests.js",
-    "test:config": "node test/index.js config",
-    "test:comprehensive": "node test/comprehensive.test.js",
-    "test:image-processing": "node test/image-processing.test.js",
-    "test:format-conversion": "node test/format-conversion.test.js",
-    "test:thumbnail-extraction": "node test/thumbnail-extraction.test.js",
-    "test:jpeg-conversion": "node test/jpeg-conversion.test.js",
-    "test:workers": "node test/worker-thread.test.js",
-    "test:worker-memory": "node --expose-gc test/worker-memory-leak.test.js",
-    "test:legacy": "npm run test:basic && npm run test:formats && npm run test:performance",
-    "test:basic": "node test/test.js",
-    "test:formats": "node test/all-formats.test.js",
-    "test:performance": "node test/performance.test.js",
-    "test:samples": "node test/test-samples.js",
-    "test:compare": "node test/compare-samples.js",
-    "pretest": "npm run build",
-    "prepublishOnly": "npm run test",
-    "preinstall": "node-gyp-build-optional-packages || echo 'No prebuilt binaries available'",
+    "test": "vitest run",
+    "test:stable": "vitest run test/stable",
+    "test:package": "node scripts/test-package-consumers.js",
+    "test:legacy": "vitest run test/stable/legacy-contract.test.ts test/stable/legacy-types.test.mjs",
+    "test:formats": "vitest run test/stable/render.test.ts test/stable/fixture-matrix.test.ts",
+    "test:queue": "vitest run test/stable/queue-cancellation.test.ts",
+    "pretest": "pnpm run build",
+    "prepublishOnly": "pnpm run test && pnpm run package:check",
     "install": "node-gyp-build || node-gyp rebuild",
     "clean": "node-gyp clean",
     "setup:github": "node scripts/github-setup.js",
@@ -40,29 +42,55 @@
     "extract:thumbnails": "node scripts/extract-thumbnails.js",
     "convert:jpeg": "node scripts/batch-jpeg-conversion.js",
     "version:check": "node -e \"console.log('Package:', require('./package.json').version); console.log('Node:', process.version);\"",
-    "publish:check": "npm run test && npm run docs:generate",
-    "publish:dry": "npm publish --dry-run"
+    "publish:check": "pnpm audit --prod --audit-level high && pnpm exec tsc --noEmit && pnpm run test && pnpm run package:check && pnpm run test:package",
+    "publish:dry": "npm publish --dry-run",
+    "build:prebuild": "prebuildify --napi --strip --target 24.0.0",
+    "package:check": "node scripts/check-package.js"
   },
   "dependencies": {
-    "node-addon-api": "^7.0.0",
+    "node-addon-api": "^8.5.0",
     "node-gyp-build": "^4.8.0",
-    "sharp": "^0.33.5"
+    "sharp": "^0.35.3"
   },
   "devDependencies": {
-    "node-gyp": "^10.0.0"
+    "@types/node": "^24.0.0",
+    "node-gyp": "^11.4.2",
+    "prebuildify": "^6.0.1",
+    "tsup": "^8.5.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
   },
   "engines": {
-    "node": ">=14.0.0"
+    "node": "^22.0.0 || ^24.0.0"
   },
   "gypfile": true,
   "files": [
-    "lib/**/*",
+    "dist/**/*",
+    "lib/index.js",
+    "lib/index.d.ts",
+    "lib/legacy.cjs",
+    "lib/legacy.d.mts",
     "src/**/*",
-    "deps/**/*",
+    "vendor/libraw-0.22.2/src/**/*",
+    "vendor/libraw-0.22.2/libraw/**/*",
+    "vendor/libraw-0.22.2/internal/**/*",
+    "vendor/libraw-0.22.2/COPYRIGHT",
+    "vendor/libraw-0.22.2/LICENSE.CDDL",
+    "vendor/libraw-0.22.2/LICENSE.LGPL",
+    "vendor/zlib-1.3.2/*.c",
+    "vendor/zlib-1.3.2/*.h",
+    "vendor/zlib-1.3.2/LICENSE",
+    "prebuilds/**/*",
+    "scripts/list-libraw-sources.js",
+    "scripts/check-package.js",
+    "scripts/test-package-consumers.js",
+    "api/**/*",
+    "docs/**/*",
     "binding.gyp",
     "README.md",
     "LICENSE",
-    "CHANGELOG.md"
+    "CHANGELOG.md",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "os": [
     "win32",
@@ -109,10 +137,17 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/unique01082/lightdrift-libraw.git"
+    "url": "git+https://github.com/unique01082/lightdrift-libraw.git"
   },
   "bugs": {
     "url": "https://github.com/unique01082/lightdrift-libraw/issues"
   },
-  "homepage": "https://github.com/unique01082/lightdrift-libraw#readme"
+  "homepage": "https://github.com/unique01082/lightdrift-libraw#readme",
+  "directories": {
+    "doc": "docs",
+    "example": "examples",
+    "lib": "lib",
+    "test": "test"
+  },
+  "type": "commonjs"
 }
