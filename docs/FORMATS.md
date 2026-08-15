@@ -1,132 +1,90 @@
-# Supported RAW Formats
+# Formats and cameras
 
-## Overview
+`lightdrift-libraw` uses the vendored LibRaw 0.22.2 core to identify and decode
+camera RAW files. Support is determined by the exact camera model, compression,
+and encoding—not only by the filename extension—so the table below is a useful
+starting point rather than a promise for every file carrying that suffix.
 
-This library supports 100+ RAW image formats through LibRaw. Below are the most common formats:
+## Representative RAW families
 
-## Major Camera Manufacturers
+| Manufacturer | Common extensions | Notes |
+| --- | --- | --- |
+| Canon | `.CR2`, `.CR3`, `.CRW` | DSLR, mirrorless, and older Canon RAW families |
+| Nikon | `.NEF`, `.NRW` | Standard Nikon RAW variants; camera-specific compression may vary |
+| Sony | `.ARW`, `.SRF`, `.SR2` | Alpha and older Sony RAW families |
+| Fujifilm | `.RAF` | Bayer and X-Trans camera families |
+| Panasonic / Lumix | `.RW2` | Lumix still-camera RAW files |
+| Olympus / OM System | `.ORF` | Olympus and OM System still-camera RAW files |
+| Pentax | `.PEF` | Pentax proprietary RAW files |
+| Leica | `.DNG`, `.RWL` | Leica DNG and proprietary RAW files |
+| Adobe Digital Negative | `.DNG` | DNG containers from supported cameras and converters |
 
-### Canon
-- **CR2** - Canon RAW version 2 (older models)
-- **CR3** - Canon RAW version 3 (newer models like EOS R, EOS M50)
-- **CRW** - Canon RAW (very old models)
+Consult the [LibRaw 0.22 supported-camera list](https://www.libraw.org/supported-cameras)
+for model-level upstream information. That upstream list covers builds with all
+optional features; this SDK intentionally uses the LibRaw core profile without
+DNG SDK, RawSpeed, Jasper, LCMS, or OpenMP.
 
-### Nikon  
-- **NEF** - Nikon Electronic Format (all Nikon DSLRs and mirrorless)
+## Release fixture matrix
 
-### Sony
-- **ARW** - Sony Alpha RAW (α series cameras)
-- **SR2** - Sony RAW version 2 (some older models)
-- **SRF** - Sony RAW Format (very old models)
+The v1 release gates keep redistributable fixtures in Git and exercise these
+families through open, unpack, metadata snapshot, embedded thumbnail, and Sharp
+render workflows:
 
-### Fujifilm
-- **RAF** - Fuji RAW Format (X-series and GFX cameras)
+| Family | Fixture coverage |
+| --- | --- |
+| Canon | CR2 |
+| Nikon | NEF |
+| Sony | ARW |
+| Olympus | ORF |
+| Adobe / camera DNG | DNG |
+| Fujifilm | RAF |
+| Panasonic | RW2 |
+| Synthetic input | Bayer data |
 
-### Panasonic/Lumix
-- **RW2** - Panasonic RAW version 2 (GH, G, FZ series)
-- **RAW** - Panasonic RAW (older models)
+Passing a family fixture proves the release pipeline for that sample; it does
+not replace camera-model testing for an application's own archive.
 
-### Olympus
-- **ORF** - Olympus RAW Format (OM-D, PEN series)
+## Output formats
 
-### Leica
-- **DNG** - Digital Negative (Adobe standard, used by Leica)
-- **RWL** - Leica RAW (some models)
+The stable convenience API renders complete buffers through one processing
+pipeline:
 
-### Other Manufacturers
-- **DNG** - Adobe Digital Negative (universal format)
-- **3FR** - Hasselblad RAW
-- **ARI** - ARRI Alexa RAW
-- **BAY** - Casio RAW
-- **BMQ** - NuCore RAW
-- **CAP** - Phase One RAW
-- **CINE** - Phantom RAW
-- **DXO** - DxO RAW
-- **EIP** - Phase One RAW
-- **ERF** - Epson RAW
-- **FFF** - Imacon RAW
-- **IIQ** - Phase One RAW
-- **K25** - Kodak RAW
-- **KC2** - Kodak RAW
-- **KDC** - Kodak RAW
-- **MDC** - Minolta RAW
-- **MEF** - Mamiya RAW
-- **MFW** - Mamiya RAW
-- **MOS** - Leaf RAW
-- **MRW** - Minolta RAW
-- **NAK** - Nintendo RAW
-- **NRW** - Nikon RAW (small format)
-- **PEF** - Pentax RAW
-- **PXN** - Logitech RAW
-- **QTK** - Apple QuickTake RAW
-- **R3D** - RED Digital Cinema RAW
-- **RAD** - Radiometric RAW
-- **RDC** - Digital Dream RAW
-- **RMF** - Raw Media Format
-- **RW2** - Panasonic RAW
-- **RWZ** - Rawzor RAW
-- **SR2** - Sony RAW
-- **SRF** - Sony RAW
-- **STI** - Sinar RAW
-- **X3F** - Sigma RAW (Foveon)
+| Format | Method | Notes |
+| --- | --- | --- |
+| JPEG | `createJPEGBuffer()` | Quality, resize, progressive, and MozJPEG options |
+| PNG | `createPNGBuffer()` | Resize and compression-level options |
+| TIFF | `createTIFFBuffer()` | Sharp-encoded TIFF buffer |
+| WebP | `createWebPBuffer()` | Quality and resize options |
+| AVIF | `createAVIFBuffer()` | Quality, effort, and resize options |
+| PPM | `createPPMBuffer()` | Standards-compliant 8-bit or 16-bit PPM |
+| Embedded JPEG | `createThumbnailJPEGBuffer()` | Camera thumbnail decoded and optionally resized |
 
-## Format Capabilities
+Native LibRaw writers are also mirrored for callers that need upstream writer
+semantics. See [API mapping](api-mapping.md).
 
-| Feature | Support Level |
-|---------|---------------|
-| Metadata Extraction | ✅ Full support for all formats |
-| Image Dimensions | ✅ Full support |
-| Camera Settings | ✅ ISO, Aperture, Shutter, Focal Length |
-| Timestamp | ✅ Capture date/time |
-| Color Profile Info | ✅ Color space and filter data |
-| Thumbnail Extraction | ⚠️ Not yet implemented |
-| Full Image Decode | ⚠️ Not yet implemented |
+## Compatibility boundaries
 
-## Compatibility Notes
+- Node.js 22 and 24 only.
+- Linux prebuilds target glibc, not Alpine/musl.
+- Browser and WASM runtimes are not supported.
+- The SDK does not load a system LibRaw installation.
+- Input is a complete file or buffer; incremental streaming is not advertised.
+- Resource limits remain LibRaw defaults, so applications should apply their
+  own upload, memory, and timeout policies where needed.
 
-### Windows
-- Requires Visual Studio Build Tools
-- Full support for all formats
-- Performance optimized builds
+## Testing an application-specific camera
 
-### macOS  
-- Requires Xcode Command Line Tools
-- Full support for all formats
-- Native ARM64 support on Apple Silicon
+Before committing to a camera workflow, test representative files from the
+actual camera and firmware versions your application will accept:
 
-### Linux
-- Requires build-essential package
-- Full support for all formats
-- Tested on Ubuntu, CentOS, Alpine
+1. Call `loadFile()` or `loadBuffer()`.
+2. Inspect `getMetadata()` and `getDecoderInfo()`.
+3. Exercise both embedded-thumbnail and processed-image output.
+4. Keep a legally redistributable sample in the application's integration
+   suite when possible.
 
-## Testing Coverage
+## Related
 
-Our test suite covers these sample formats:
-- ✅ Canon CR3 (Canon cameras)
-- ✅ Nikon NEF (Nikon D5600, etc.)
-- ✅ Fujifilm RAF (X-series cameras)
-- ✅ Adobe DNG (Leica, smartphones)
-- ✅ Panasonic RW2 (Lumix cameras)
-- ✅ Sony ARW (Alpha cameras)
-
-## Performance Characteristics
-
-| Format | Typical Size | Processing Speed | Notes |
-|--------|-------------|------------------|-------|
-| NEF | 15-45 MB | Fast | Well optimized |
-| CR3 | 25-65 MB | Fast | Efficient format |
-| ARW | 20-60 MB | Fast | Good compression |
-| RAF | 30-80 MB | Medium | Larger files |
-| RW2 | 15-40 MB | Fast | Compact format |
-| DNG | 20-100 MB | Medium | Varies by source |
-
-## Adding New Format Support
-
-LibRaw regularly adds support for new cameras. To update:
-
-1. Download newer LibRaw version
-2. Replace library files in `deps/`
-3. Rebuild the native addon
-4. Test with new format samples
-
-See the upgrade guide for detailed instructions.
+- [Getting started](getting-started.md) — First file and buffer workflows.
+- [Platform support](platform-support.md) — Runtime and prebuild matrix.
+- [API mapping](api-mapping.md) — LibRaw parity and exclusions.

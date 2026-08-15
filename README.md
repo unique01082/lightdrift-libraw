@@ -1,165 +1,188 @@
 # lightdrift-libraw
 
-A typed Node.js SDK for decoding camera RAW files with vendored LibRaw 0.22.2
-and encoding them with Sharp.
+Decode camera RAW files, inspect photographic metadata, extract thumbnails,
+and render web-ready images from Node.js—without installing LibRaw yourself.
 
-`1.0.0-rc.1` provides ESM and CommonJS exports, Node-API prebuilds, a
-per-instance asynchronous queue, cancellation, typed events, copied pixel
-memory, and the complete safe LibRaw public surface.
+[![npm version](https://img.shields.io/npm/v/lightdrift-libraw?label=npm)](https://www.npmjs.com/package/lightdrift-libraw)
+[![release](https://img.shields.io/npm/v/lightdrift-libraw/next?label=next)](https://www.npmjs.com/package/lightdrift-libraw/v/1.0.0-rc.2)
+[![CI](https://github.com/unique01082/lightdrift-libraw/actions/workflows/ci.yml/badge.svg)](https://github.com/unique01082/lightdrift-libraw/actions/workflows/ci.yml)
+[![Node.js](https://img.shields.io/badge/Node.js-22%20%7C%2024-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
+[![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue)](docs/platform-support.md)
+[![license](https://img.shields.io/badge/license-MIT-yellow)](LICENSE)
 
-> **Release status:** `1.0.0-rc.1` is the current repository candidate. It has
-> not yet been published to npm. The release workflow will publish it under
-> the `next` dist-tag after every target-platform gate passes. The public
-> `beta` package still exposes the older beta contract.
+`lightdrift-libraw` combines vendored LibRaw 0.22.2 with Sharp behind a typed,
+Promise-based API. Supported systems download a Node-API prebuilt binary; the
+package also includes a reproducible source-build fallback.
+
+## Why lightdrift-libraw?
+
+| Need | What the SDK provides |
+| --- | --- |
+| Decode camera originals | Load RAW files, owned buffers, or synthetic Bayer data with `loadFile()`, `loadBuffer()`, and `openBayer()` |
+| Read photographic metadata | Camera, exposure, dimensions, lens, color, decoder, and processing snapshots |
+| Extract previews quickly | Decode embedded thumbnails and return a consistent typed result |
+| Create application-ready images | Render JPEG, PNG, TIFF, WebP, AVIF, or standards-compliant PPM through Sharp |
+| Process a collection | Ordered batch conversion with bounded `maxConcurrency` and one processor per active input |
+| Reach LibRaw when needed | A camelCase mirror of the complete safe LibRaw 0.22.2 public surface, with explicit exclusions documented |
+
+The high-level workflows are designed for everyday application code. The
+low-level mirror remains available when you need precise LibRaw lifecycle,
+decoder, color, Bayer, or output-parameter control.
+
+## Supported cameras and formats
+
+LibRaw supports a broad camera database. These are representative RAW families
+handled by the SDK, not an exhaustive compatibility guarantee for every camera
+or encoding variant.
+
+| Manufacturer | Representative formats |
+| --- | --- |
+| Canon | `.CR2`, `.CR3`, `.CRW` |
+| Nikon | `.NEF`, `.NRW` |
+| Sony | `.ARW`, `.SRF`, `.SR2` |
+| Fujifilm | `.RAF` |
+| Panasonic / Lumix | `.RW2` |
+| Olympus / OM System | `.ORF` |
+| Pentax | `.PEF` |
+| Leica | `.DNG`, `.RWL` |
+| Adobe Digital Negative | `.DNG` |
+
+The release fixture matrix exercises Canon CR2, Nikon NEF, Sony ARW, Olympus
+ORF, DNG, Fujifilm RAF, and Panasonic RW2 through open, unpack, metadata,
+thumbnail, and render workflows. See [format support](docs/FORMATS.md) and the
+[LibRaw 0.22 camera list](https://www.libraw.org/supported-cameras) for details.
 
 ## Quick start
 
-### 1. Choose a supported runtime
-
-Use Node.js 22 or 24 on Linux glibc, macOS, or Windows. Both ESM and CommonJS
-consumers are supported.
-
-### 2. Install the release candidate
-
-After `1.0.0-rc.1` is published:
+### Install the current release candidate
 
 ```bash
 npm install lightdrift-libraw@next
 ```
 
-Supported targets download a Node-API prebuilt binary. The npm package also
-contains LibRaw and zlib source for the documented native-build fallback; it
-never uses a system LibRaw installation.
+Use Node.js 22 or 24. No account, authentication, system LibRaw installation,
+or post-install configuration is required on a supported prebuilt target.
 
-### 3. Import the SDK
-
-ESM:
+### Decode a RAW file to JPEG
 
 ```js
-import { LibRaw, LibRawError } from "lightdrift-libraw";
-```
+import { writeFile } from "node:fs/promises";
+import { LibRaw } from "lightdrift-libraw";
 
-CommonJS:
-
-```js
-const { LibRaw, LibRawError } = require("lightdrift-libraw");
-```
-
-No account, authentication, or external service configuration is required.
-
-### 4. Decode and encode a RAW file
-
-```js
 const raw = new LibRaw();
 
 try {
   await raw.loadFile("photo.cr2");
-  const image = await raw.createJPEGBuffer({
-    width: 1920,
-    quality: 85,
-  });
+  const image = await raw.createJPEGBuffer({ width: 1920, quality: 85 });
+  await writeFile("photo.jpg", image.data);
 
-  console.log({
-    format: image.format,
-    width: image.width,
-    height: image.height,
-    bytes: image.size,
-    source: image.source,
-  });
-} catch (error) {
-  if (error instanceof LibRawError) {
-    console.error(error.code, error.operation, error.state);
-  }
-  throw error;
+  console.log(`${image.width}x${image.height} · ${image.size} bytes`);
 } finally {
   await raw.close();
 }
 ```
 
-Every stable encoder returns the same result shape:
+Every stable encoder returns the same shape: encoded `data`, `format`, output
+dimensions, channel count, byte `size`, `processingTimeMs`, and the image
+`source` (`processed` or `embedded-thumbnail`).
 
-```ts
-interface EncodedImageResult {
-  data: Buffer;
-  format: "jpeg" | "png" | "tiff" | "webp" | "avif" | "ppm";
-  width: number;
-  height: number;
-  channels: number;
-  size: number;
-  processingTimeMs: number;
-  source: "processed" | "embedded-thumbnail";
-}
-```
-
-## Capabilities
-
-| Area | Stable v1 behavior |
-| --- | --- |
-| **RAW lifecycle** | Open files, owned buffers, and synthetic Bayer data; unpack, recycle, and close safely |
-| **LibRaw mirror** | Complete safe LibRaw 0.22.2 surface: 65 supported manifest entries with camelCase names and six explicit exclusions |
-| **Processing** | Raw-to-image, dcraw processing, embedded thumbnails, native writers, color and decoder helpers |
-| **Metadata** | Typed snapshots and copied raw/processed pixel buffers |
-| **Encoding** | JPEG, PNG, TIFF, WebP, AVIF, and standards-compliant 8/16-bit PPM through one render pipeline |
-| **Concurrency** | FIFO execution per instance; separate instances run independently |
-| **Control** | `AbortSignal`, typed `LibRawError`, and progress/data/EXIF/maker-note events |
-| **Compatibility** | Frozen beta API at `lightdrift-libraw/legacy` throughout v1 |
-
-`getOptimalJPEGSettings()` is a deterministic heuristic based on image
-metadata and requested usage. It does not use AI.
-
-The SDK does not claim streaming support. Stable v1 operates on complete files
-or buffers and returns complete output buffers.
-
-## Lifecycle and concurrency
-
-`openFile()` preserves upstream LibRaw semantics and only opens the input.
-Call `unpack()` explicitly afterward. The convenience methods `loadFile()` and
-`loadBuffer()` perform recycle → open → unpack.
-
-Each `LibRaw` instance owns a worker and FIFO queue. Native operations on one
-instance never overlap, while separate instances may decode concurrently
-without blocking the calling event loop.
-
-Use `recycle()` to reset an instance for reuse. `close()` waits for queued work,
-is idempotent, releases native resources, and permanently closes the instance.
-See [lifecycle, events, and cancellation](docs/lifecycle.md) for the complete
-state contract.
-
-## Cancellation and events
+CommonJS uses the same class and methods:
 
 ```js
-const controller = new AbortController();
-const decoding = raw.loadFile("large.arw", { signal: controller.signal });
-
-controller.abort();
-try {
-  await decoding;
-} catch (error) {
-  if (!(error instanceof LibRawError) || error.code !== "ABORT_ERR") throw error;
-}
+const { LibRaw, LibRawError } = require("lightdrift-libraw");
 ```
+
+See [Getting started](docs/getting-started.md) for complete ESM, CommonJS, file,
+and buffer examples.
+
+## Common workflows
+
+Each snippet below assumes an open `LibRaw` instance named `raw`. Keep instance
+ownership local and call `close()` in `finally`, as shown in the quick start.
+
+### Inspect camera metadata
 
 ```js
-raw.on("progress", ({ stage, iteration, expected }) => {});
-raw.on("dataError", ({ offset, file }) => {});
-raw.on("exifTag", ({ tag, type, length, order }) => {});
-raw.on("makerNote", ({ tag, type, length, order }) => {});
+await raw.loadFile("photo.nef");
+const metadata = await raw.getMetadata();
+
+console.log({
+  camera: [metadata.make, metadata.model].filter(Boolean).join(" "),
+  dimensions: `${metadata.width}x${metadata.height}`,
+  iso: metadata.iso,
+  aperture: metadata.aperture,
+  focalLength: metadata.focalLength,
+});
 ```
 
-Callback events are emitted in order after the current native operation
-returns. They are processing records, not live progress-bar updates.
+### Extract an embedded thumbnail
+
+```js
+import { writeFile } from "node:fs/promises";
+
+await raw.loadFile("photo.raf");
+const thumbnail = await raw.createThumbnailJPEGBuffer({
+  width: 512,
+  height: 512,
+  quality: 82,
+});
+
+await writeFile("thumbnail.jpg", thumbnail.data);
+```
+
+### Convert a batch while preserving input order
+
+```js
+const results = await LibRaw.batchConvertToJPEGParallel(
+  ["one.arw", "two.rw2"],
+  "output",
+  { width: 2048, quality: 85, maxConcurrency: 2 },
+);
+
+console.log(results.map(({ width, height, size }) => ({ width, height, size })));
+```
+
+The batch helper creates and closes separate processors, limits active work,
+writes `<input-name>.jpg` into the output directory, and returns results in the
+same order as the input paths.
+
+## Reliability by default
+
+- **Non-blocking native work:** every processor owns a worker, so RAW decoding
+  does not run on the calling JavaScript thread.
+- **Predictable ordering:** native operations are FIFO on one instance;
+  different instances may run concurrently.
+- **Owned memory:** input buffers stay alive until `recycle()` or `close()`, and
+  pixel buffers returned to JavaScript are copies rather than LibRaw pointers.
+- **Cancellation:** stateful operations accept `{ signal }`; aborted work
+  rejects with a typed `LibRawError` whose `code` is `ABORT_ERR`.
+- **Structured failures:** `LibRawError` always exposes `code`, `operation`,
+  `librawCode`, `state`, and `cause`.
+- **Explicit lifecycle:** use `recycle()` to reuse a processor. `close()` waits
+  for queued work, is idempotent, and permanently closes the instance.
+
+Native callback records are emitted as `progress`, `dataError`, `exifTag`, and
+`makerNote` events after the operation returns. They are ordered processing
+records, not live progress-bar updates. Read the full
+[lifecycle, events, and cancellation contract](docs/lifecycle.md).
+
+`getOptimalJPEGSettings()` is a deterministic metadata-based heuristic. It
+does not call an AI service or send image data anywhere.
 
 ## Platform support
 
 | Operating system | Architecture | Delivery |
 | --- | --- | --- |
-| **Linux glibc** | x64, arm64 | Prebuilt + source fallback |
-| **macOS** | x64, arm64 | Prebuilt + source fallback |
-| **Windows** | x64 | Prebuilt + source fallback |
+| Linux glibc | x64 | Prebuilt + source fallback |
+| Linux glibc | arm64 | Prebuilt + source fallback |
+| macOS | x64 | Prebuilt + source fallback |
+| macOS | arm64 | Prebuilt + source fallback |
+| Windows | x64 | Prebuilt + source fallback |
 
-Stable v1 does not support Node.js 20, Alpine/musl, browsers, WASM, or system
-LibRaw. See [platform support](docs/platform-support.md) for the complete matrix
-and Windows path limitations.
+Stable v1 supports Node.js 22 and 24 with both ESM and CommonJS exports. It does
+not support Node.js 20, Alpine/musl, browsers, WASM, or a system LibRaw. See the
+[complete platform matrix](docs/platform-support.md) and
+[source-build prerequisites](docs/source-build.md).
 
 ## Migrating from beta
 
@@ -170,39 +193,50 @@ the deprecated compatibility entry point throughout v1:
 const LegacyLibRaw = require("lightdrift-libraw/legacy");
 ```
 
-The legacy entry point preserves beta method names, synchronous helpers,
-nested results, declarations, and error behavior. It emits one deprecation
-warning per process and will be removed in v2. See the
-[migration guide](docs/migration-v1.md) before moving an existing application
-to the stable root API.
+`/legacy` preserves the frozen beta surface and emits one deprecation warning
+per process. It will be removed in v2. Follow the
+[migration guide](docs/migration-v1.md) to adopt stable results, errors, and
+lifecycle behavior.
 
 ## Documentation
 
-### Using the SDK
+### Start
 
-- [Getting started](docs/getting-started.md) - Files, buffers, ESM, and CommonJS.
-- [Lifecycle, events, and cancellation](docs/lifecycle.md) - Queue, ownership,
-  state, events, cancellation, recycle, and close.
-- [API mapping](docs/api-mapping.md) - LibRaw parity, exclusions, parameters,
-  and 16-bit behavior.
-- [Platform support](docs/platform-support.md) - Runtime and prebuild matrix.
-- [Migration to v1](docs/migration-v1.md) - Stable and beta contracts.
+- [Getting started](docs/getting-started.md) — Install, verify, and decode from
+  files or buffers with ESM and CommonJS.
+- [Formats and cameras](docs/FORMATS.md) — Representative RAW families,
+  validated fixtures, and compatibility boundaries.
+- [Platform support](docs/platform-support.md) — Node, OS, architecture, and
+  prebuilt availability.
 
-### Building and release status
+### Build workflows
 
-- [Source builds](docs/source-build.md) - Vendored dependencies and fallback
-  prerequisites.
-- [1.0.0-rc.1 release notes](docs/releases/1.0.0-rc.1.md) - Highlights,
-  compatibility, known limits, and promotion gates.
-- [Stable v1 implementation audit](docs/superpowers/2026-08-15-lightdrift-libraw-stable-v1-audit.md) - Requirement coverage and remaining external gates.
-- [Documentation index](docs/README.md) - Complete navigation.
+- [Examples](docs/EXAMPLES.md) — Additional application workflows; beta-shaped
+  examples are labeled in the documentation hub.
+- [Lifecycle, events, and cancellation](docs/lifecycle.md) — Ownership, queue,
+  state transitions, cancellation, recycle, and close.
+
+### Understand the API
+
+- [API mapping](docs/api-mapping.md) — LibRaw parity, exclusions, output
+  parameters, and low-level behavior.
+- [Migration to v1](docs/migration-v1.md) — Stable versus beta contracts and
+  the `/legacy` adapter.
+
+### Maintain or contribute
+
+- [Documentation index](docs/README.md) — Complete current and historical
+  documentation map.
+- [Source builds](docs/source-build.md) — Vendored dependency build fallback.
+- [Contributing](CONTRIBUTING.md) — Local development and pull requests.
 
 ## License
 
 The JavaScript and addon integration are MIT licensed. Vendored LibRaw and zlib
-retain their upstream licenses; see [third-party notices](THIRD_PARTY_NOTICES.md).
+retain their upstream licenses; see [Third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Related
 
-- [Documentation index](docs/README.md) - Complete user and developer documentation.
-- [Third-party notices](THIRD_PARTY_NOTICES.md) - Vendored dependency licenses.
+- [Documentation index](docs/README.md) — Complete user and developer documentation.
+- [npm package](https://www.npmjs.com/package/lightdrift-libraw) — Published versions and provenance.
+- [GitHub releases](https://github.com/unique01082/lightdrift-libraw/releases) — Release notes, tarballs, and SBOMs.
