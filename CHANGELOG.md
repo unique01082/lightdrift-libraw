@@ -5,12 +5,51 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# Changelog
+## [1.0.0-rc.1] - 2026-08-15
 
-All notable changes to this project will be documented in this file.
+### Added
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+- Stable typed `LibRaw` API with ESM and CommonJS exports.
+- Per-instance asynchronous worker queue, AbortSignal cancellation, and native
+  callback events.
+- Complete safe LibRaw 0.22.2 camelCase mirror and parity manifest.
+- Unified Sharp result contract and bounded ordered batch workflows.
+- `lightdrift-libraw/legacy` compatibility entry point through v1.
+- Node-API prebuild and source-fallback CI for the supported platform matrix.
+- Production dependency audit gates for CI and trusted publication.
+
+### Changed
+
+- Vendored LibRaw 0.22.2 and zlib 1.3.2 replace system and duplicated LibRaw
+  dependencies.
+- Node.js support is now limited to active 22 and 24 LTS releases.
+- Sharp is upgraded to 0.35.3 to include current libvips security fixes.
+- Windows prebuild jobs use the Visual Studio 2022 runner supported by
+  Node-gyp 11; the Windows 2025 image now exposes Visual Studio 2026.
+- Native workflow tests allow for constrained CI runners without weakening
+  their behavioral assertions.
+- LibRaw source discovery now emits POSIX separators on every host so gyp does
+  not treat Windows backslashes as shell escapes.
+- Removed the disabled RawSpeed camera-file binding so Windows static builds do
+  not retain an unavailable RawSpeed linker dependency.
+- Made the npm package-content gate resolve the npm command through the Windows
+  command shell and report command-launch failures safely.
+- Applied the same Windows command resolution and safe diagnostics to installed
+  tarball consumer tests.
+- Fixed an out-of-bounds read while transposing LibRaw's 3-by-4 color matrix
+  into the historical four-row JavaScript metadata shape.
+- Gave sanitizer-only test runs a five-minute per-test budget to account for
+  ASan/UBSan decode overhead while retaining the normal two-minute limit.
+- Disabled LeakSanitizer for the malformed-input Node child because Node 24's
+  process-global OpenSSL initialization leaves a known 24-byte allocation;
+  AddressSanitizer and UndefinedBehaviorSanitizer remain enabled.
+- `openFile()` follows upstream open-only semantics; `loadFile()` remains the
+  recycle → open → unpack convenience workflow.
+
+### Removed
+
+- Claims of incremental stream support and AI-powered JPEG settings.
+- Node.js 20, Alpine/musl, system LibRaw, browser, and WASM support from v1.
 
 ## [1.0.0-beta.1] - 2026-01-06
 

@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0-beta.1",
+  "instanceMethods": [
+    "adjustMaximum", "adjustSizesInfoOnly", "batchConvertToJPEG",
+    "clearCancelFlag", "close", "convertFloatToInt", "convertToJPEG",
+    "convertToJPEGFast", "convertToJPEGMultiSize", "copyMemImage",
+    "createAVIFBuffer", "createJPEGBuffer", "createMemoryImage",
+    "createMemoryThumbnail", "createPNGBuffer", "createPPMBuffer",
+    "createTIFFBuffer", "createThumbnailJPEGBuffer", "createWebPBuffer",
+    "errorCount", "freeImage", "getAdvancedMetadata", "getColorAt",
+    "getColorInfo", "getDecoderInfo", "getImageSize", "getLastError",
+    "getLensInfo", "getMemImageFormat", "getMetadata",
+    "getOptimalJPEGSettings", "getOutputParams", "haveFPData",
+    "isCoolscanNEF", "isFloatingPoint", "isFujiRotated", "isJPEGThumb",
+    "isNikonSRAW", "isSRAW", "loadBayerData", "loadBuffer", "loadFile",
+    "processImage", "processRawThumbnail", "raw2Image", "raw2ImageEx",
+    "setCancelFlag", "setOutputParams", "srawMidpoint", "strerror",
+    "subtractBlack", "thumbOK", "unpack", "unpackFunctionName",
+    "unpackThumbnail", "version", "versionNumber", "writePPM", "writeTIFF",
+    "writeThumbnail"
+  ],
+  "staticMethods": [
+    "batchConvertToJPEGParallel", "getCameraCount", "getCameraList",
+    "getCapabilities", "getVersion"
+  ]
+}
