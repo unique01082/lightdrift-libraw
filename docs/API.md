@@ -1,8 +1,13 @@
 # API Documentation
 
+> **Historical beta reference.** This page documents the deprecated
+> `lightdrift-libraw/legacy` surface. New applications should start with the
+> [stable documentation hub](README.md) and [API mapping](api-mapping.md).
+
 ## LibRaw Class
 
-The main class for processing RAW image files. Supports both traditional file-based operations and modern buffer-based streaming operations.
+The main class for processing RAW image files. It accepts complete file and
+buffer inputs; it does not incrementally decode a Node.js stream.
 
 ### Constructor
 

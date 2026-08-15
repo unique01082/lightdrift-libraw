@@ -166,7 +166,7 @@ Native callback records are emitted as `progress`, `dataError`, `exifTag`, and
 records, not live progress-bar updates. Read the full
 [lifecycle, events, and cancellation contract](docs/lifecycle.md).
 
-`getOptimalJPEGSettings()` is a deterministic metadata-based heuristic. It
+`getOptimalJPEGSettings()` is a deterministic heuristic based on metadata. It
 does not call an AI service or send image data anywhere.
 
 ## Platform support
@@ -183,6 +183,9 @@ Stable v1 supports Node.js 22 and 24 with both ESM and CommonJS exports. It does
 not support Node.js 20, Alpine/musl, browsers, WASM, or a system LibRaw. See the
 [complete platform matrix](docs/platform-support.md) and
 [source-build prerequisites](docs/source-build.md).
+
+Inputs are complete files or buffers. The SDK does not claim streaming support;
+wrapping a completed buffer in a Node.js stream is not incremental RAW decoding.
 
 ## Migrating from beta
 

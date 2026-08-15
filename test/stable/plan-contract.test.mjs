@@ -13,7 +13,7 @@ describe("Stable v1 plan contract", () => {
 
     expect(manifest).toMatchObject({
       name: "lightdrift-libraw",
-      version: "1.0.0-rc.1",
+      version: "1.0.0-rc.2",
       engines: { node: "^22.0.0 || ^24.0.0" },
       main: "dist/index.cjs",
       module: "dist/index.mjs",
@@ -209,7 +209,7 @@ describe("Stable v1 plan contract", () => {
         text("docs/platform-support.md"),
         text("docs/source-build.md"),
         text("THIRD_PARTY_NOTICES.md"),
-        text("docs/releases/1.0.0-rc.1.md"),
+        text("docs/releases/1.0.0-rc.2.md"),
       ]);
 
     expect(readme).toContain("deterministic heuristic");
@@ -226,9 +226,9 @@ describe("Stable v1 plan contract", () => {
     expect(sourceBuild).toContain("vendor/zlib-1.3.2");
     expect(notices).toContain("LibRaw 0.22.2");
     expect(notices).toContain("zlib 1.3.2");
-    expect(docsHub).toContain("releases/1.0.0-rc.1.md");
-    expect(releaseNotes).toContain("1.0.0-rc.1");
-    expect(releaseNotes).toContain("Promotion gates");
+    expect(docsHub).toContain("releases/1.0.0-rc.2.md");
+    expect(releaseNotes).toContain("1.0.0-rc.2");
+    expect(releaseNotes).toContain("Promotion to 1.0.0");
   });
 
   it("uses assertion-based stable gates instead of console diagnostics", async () => {
