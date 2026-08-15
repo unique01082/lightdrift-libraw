@@ -1,7 +1,7 @@
 {
   "name": "lightdrift-libraw",
-  "version": "1.0.0-rc.1",
-  "description": "Stable Node.js SDK for decoding RAW images with vendored LibRaw and Sharp.",
+  "version": "1.0.0-rc.2",
+  "description": "Decode camera RAW files, inspect metadata, extract thumbnails, and render images in Node.js.",
   "main": "dist/index.cjs",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",
