@@ -151,12 +151,16 @@ describe("per-instance queue and cancellation", () => {
       `,
       { eval: true, workerData: { entry, fixture: raf } },
     );
+    // Subscribe to exit before awaiting the message. A fast worker may post
+    // "closed" and exit in the same turn; attaching the exit listener later
+    // races with that event and leaves the test waiting forever.
+    const exited = new Promise<number>((resolve) => worker.once("exit", resolve));
     const message = await new Promise((resolve, reject) => {
       worker.once("message", resolve);
       worker.once("error", reject);
     });
     expect(message).toBe("closed");
-    await new Promise<void>((resolve) => worker.once("exit", () => resolve()));
+    await expect(exited).resolves.toBe(0);
   });
 
   it("tears down a consumer worker while a decode is active", async () => {

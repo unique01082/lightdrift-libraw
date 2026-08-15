@@ -92,6 +92,8 @@ runner.
 - Kept ASan/UBSan enabled but disabled leak detection for the standalone Node
   malformed-input process, avoiding a Node 24/OpenSSL process-global 24-byte
   allocation that is outside the addon and reproducible before addon work.
+- Made worker teardown verification race-free by observing `exit` before the
+  final `closed` message can be delivered.
 
 ## Local verification
 
