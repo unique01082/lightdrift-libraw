@@ -4,7 +4,7 @@ Decode camera RAW files, inspect photographic metadata, extract thumbnails,
 and render web-ready images from Node.js—without installing LibRaw yourself.
 
 [![npm version](https://img.shields.io/npm/v/lightdrift-libraw?label=npm)](https://www.npmjs.com/package/lightdrift-libraw)
-[![GitHub release](https://img.shields.io/github/v/release/unique01082/lightdrift-libraw?label=release)](https://github.com/unique01082/lightdrift-libraw/releases/tag/v1.0.0)
+[![GitHub release](https://img.shields.io/github/v/release/unique01082/lightdrift-libraw?label=release)](https://github.com/unique01082/lightdrift-libraw/releases/latest)
 [![CI](https://github.com/unique01082/lightdrift-libraw/actions/workflows/ci.yml/badge.svg)](https://github.com/unique01082/lightdrift-libraw/actions/workflows/ci.yml)
 [![Node.js](https://img.shields.io/badge/Node.js-22%20%7C%2024-339933?logo=node.js&logoColor=white)](https://nodejs.org/)
 [![platforms](https://img.shields.io/badge/platforms-Linux%20%7C%20macOS%20%7C%20Windows-blue)](docs/platform-support.md)
@@ -183,6 +183,10 @@ Stable v1 supports Node.js 22 and 24 with both ESM and CommonJS exports. It does
 not support Node.js 20, Alpine/musl, browsers, WASM, or a system LibRaw. See the
 [complete platform matrix](docs/platform-support.md) and
 [source-build prerequisites](docs/source-build.md).
+
+Version 1.0.1 adds compatible Linux prebuilds for AWS Lambda Node.js 22/24
+on Amazon Linux 2023, including arm64. See the
+[Lambda installation guidance](docs/platform-support.md#aws-lambda).
 
 Electron 36 can load the same Node-API prebuild in a Node-enabled main or
 utility process; no `@electron/rebuild` step is required. Windows x64 Electron

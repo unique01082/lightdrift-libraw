@@ -7,11 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.1] - 2026-10-02
+
 ### Added
 
 - Documented Electron 36 support through the stable Node-API prebuild.
 - Added a Windows x64 Electron 36.9.5 packaged-consumer CI gate that disables
   package lifecycle scripts, proving the native addon loads without rebuilding.
+- Added an automated glibc/libstdc++ symbol-version floor check
+  (`scripts/check-glibc-floor.js`) that fails when Linux binaries are missing.
+- Added packaged-consumer CI and release gates in the official AWS Lambda
+  Node.js 22/24 images on both x64 and arm64, with install scripts disabled.
+
+### Fixed
+
+- Linux prebuilds are now compiled against a glibc 2.31 floor in CI (previously
+  the Ubuntu 24.04/24.04-arm runners' glibc), restoring compatibility with
+  Amazon Linux 2023-based runtimes such as AWS Lambda Node.js 22/24 on arm64
+  ([#8](https://github.com/unique01082/lightdrift-libraw/issues/8)).
 
 ## [1.0.0] - 2026-08-15
 

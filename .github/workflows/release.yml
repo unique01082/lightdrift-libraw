@@ -33,16 +33,28 @@ jobs:
         include:
           - platform: linux-x64
             runner: ubuntu-24.04
+            container: node:24-bullseye
           - platform: linux-arm64
             runner: ubuntu-24.04-arm
+            container: node:24-bullseye
           - platform: darwin-x64
             runner: macos-15-intel
+            container: ""
           - platform: darwin-arm64
             runner: macos-15
+            container: ""
           - platform: win32-x64
             runner: windows-2022
+            container: ""
     runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
     steps:
+      - name: Install container build tools
+        if: matrix.container != ''
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends git python3 make g++ binutils
+          rm -rf /var/lib/apt/lists/*
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
         with:
@@ -58,6 +70,9 @@ jobs:
       - run: pnpm run test:stable
       - run: pnpm run package:check
       - run: pnpm run test:package
+      - name: Verify Linux prebuild glibc/libstdc++ floor
+        if: startsWith(matrix.platform, 'linux-')
+        run: node scripts/check-glibc-floor.js prebuilds
       - uses: actions/upload-artifact@v4
         with:
           name: release-prebuild-${{ matrix.platform }}
@@ -195,8 +210,38 @@ jobs:
           $package = Get-ChildItem lightdrift-libraw-*.tgz | Select-Object -First 1
           node scripts/test-electron-consumer.js $package.FullName
 
+  al2023-consumer:
+    name: Lambda Node ${{ matrix.node }} ${{ matrix.arch }} prebuilt consumer
+    needs: package
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+        arch: [x64, arm64]
+        include:
+          - arch: x64
+            docker-platform: linux/amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            docker-platform: linux/arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+      - name: Run the packaged consumer in the official Lambda runtime
+        run: |
+          docker run --rm --platform "${{ matrix.docker-platform }}" \
+            --entrypoint /bin/bash -v "$PWD":/repo:ro -w /repo \
+            -e EXPECTED_ARCH="${{ matrix.arch }}" -e EXPECTED_NODE="${{ matrix.node }}" \
+            public.ecr.aws/lambda/nodejs:${{ matrix.node }} -euc '
+              node scripts/test-al2023-consumer.cjs lightdrift-libraw-*.tgz sample-images/DSCF4042.RAF
+            '
+
   publish:
-    needs: [package, consumer, electron-consumer]
+    needs: [package, consumer, electron-consumer, al2023-consumer]
     runs-on: ubuntu-24.04
     environment: npm
     steps:

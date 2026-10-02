@@ -13,12 +13,12 @@ describe("Stable v1 plan contract", () => {
 
     expect(manifest).toMatchObject({
       name: "lightdrift-libraw",
-      version: "1.0.0",
       engines: { node: "^22.0.0 || ^24.0.0" },
       main: "dist/index.cjs",
       module: "dist/index.mjs",
       types: "dist/index.d.ts",
     });
+    expect(manifest.version).toMatch(/^1\.\d+\.\d+$/);
     expect(manifest.exports["."]).toEqual({
       types: "./dist/index.d.ts",
       import: "./dist/index.mjs",
@@ -153,7 +153,13 @@ describe("Stable v1 plan contract", () => {
     );
     expect(release).toContain("name: Electron 36 Windows x64 release consumer");
     expect(release).toContain("node scripts/test-electron-consumer.js");
-    expect(release).toContain("needs: [package, consumer, electron-consumer]");
+    const publishJob = release.split("\n  publish:\n")[1];
+    expect(publishJob).toBeDefined();
+    const publishNeeds = publishJob.match(/needs: \[([^\]]+)\]/)?.[1]
+      .split(",").map((job) => job.trim());
+    expect(publishNeeds).toEqual(expect.arrayContaining([
+      "package", "consumer", "electron-consumer", "al2023-consumer",
+    ]));
     expect(release).toContain("pnpm run build:prebuild");
     expect(release).toContain("npm_config_build_from_source=true pnpm run build:native");
     expect(release).toContain("@cyclonedx/cdxgen@12.7.0");

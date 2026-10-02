@@ -83,7 +83,12 @@
           "ExceptionHandling": 1,
           "AdditionalOptions": ["/std:c++17"]
         }
-      }
+      },
+      "conditions": [
+        ["OS==\"linux\"", {
+          "ldflags": ["-static-libstdc++", "-static-libgcc"]
+        }]
+      ]
     }
   ]
 }

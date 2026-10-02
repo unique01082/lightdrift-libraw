@@ -45,6 +45,8 @@ marked as historical describe the deprecated beta surface.
 - [Contributing](../CONTRIBUTING.md) — Local development and pull requests.
 - [Testing reference](TESTING.md) — Historical suites plus the current test
   commands listed in `package.json`.
+- [1.0.1 release notes](releases/1.0.1.md) — AWS Lambda prebuild compatibility
+  and Electron support.
 - [1.0.0 release notes](releases/1.0.0.md) — Stable installation, supported
   platforms, verification gates, provenance, and compatibility.
 - [1.0.0-rc.2 release notes](releases/1.0.0-rc.2.md) — Documentation changes,
