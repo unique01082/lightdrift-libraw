@@ -153,7 +153,7 @@ describe("Stable v1 plan contract", () => {
     );
     expect(release).toContain("name: Electron 36 Windows x64 release consumer");
     expect(release).toContain("node scripts/test-electron-consumer.js");
-    const publishJob = release.split("\n  publish:\n")[1];
+    const publishJob = release.split(/\r?\n  publish:\r?\n/)[1];
     expect(publishJob).toBeDefined();
     const publishNeeds = publishJob.match(/needs: \[([^\]]+)\]/)?.[1]
       .split(",").map((job) => job.trim());
