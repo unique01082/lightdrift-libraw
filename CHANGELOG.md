@@ -21,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Raised the minimum Sharp version to 0.35.4 to include the libheif security
+  fixes described in [GHSA-rgj7-g3m4-5g8c](https://github.com/advisories/GHSA-rgj7-g3m4-5g8c).
 - Linux prebuilds are now compiled against a glibc 2.31 floor in CI (previously
   the Ubuntu 24.04/24.04-arm runners' glibc), restoring compatibility with
   Amazon Linux 2023-based runtimes such as AWS Lambda Node.js 22/24 on arm64
